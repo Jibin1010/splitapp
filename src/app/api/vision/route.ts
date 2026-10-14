@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseReceiptResponse } from '@/lib/vision-parser'
 
 export const runtime = 'nodejs'
 
@@ -6,127 +7,6 @@ interface VisionRequestBody {
   image?: string
   prompt?: string
   model?: string
-}
-
-export interface DetectedBillItem {
-  name: string
-  quantity: number
-  unitPricePaise: number
-  totalPaise: number
-}
-
-/**
- * Extracts line items from the markdown description if present.
- * Detects table header indices (Description, Quantity, Unit Price, Amount)
- * so extra columns like HSN/SAC, Sl No, or Tax % are never confused with quantity or price.
- */
-function parseItemsFromDescription(text: string): DetectedBillItem[] {
-  const items: DetectedBillItem[] = []
-  const lines = text.split('\n')
-
-  let headerIndices: {
-    nameIdx: number
-    qtyIdx: number
-    priceIdx: number
-    amountIdx: number
-  } | null = null
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('|') && trimmed.endsWith('|') && !trimmed.includes('---')) {
-      const cols = trimmed
-        .split('|')
-        .map((c) => c.trim())
-        .filter((c) => c.length > 0)
-
-      // Detect header row
-      const isHeader = cols.some((c) =>
-        /item|description|particular|quantity|qty|price|amount/i.test(c)
-      )
-
-      if (isHeader) {
-        let nameIdx = -1
-        let qtyIdx = -1
-        let priceIdx = -1
-        let amountIdx = -1
-
-        cols.forEach((col, idx) => {
-          const lower = col.toLowerCase()
-          if (/item|desc|product|particular/i.test(lower) && nameIdx === -1) {
-            nameIdx = idx
-          } else if (/^qty|quantity|units|count/i.test(lower) && !/hsn|sac/i.test(lower)) {
-            qtyIdx = idx
-          } else if (/unit\s*price|rate|price/i.test(lower) && !/amount|total/i.test(lower)) {
-            priceIdx = idx
-          } else if (/amount|total/i.test(lower) && !/subtotal|grand/i.test(lower)) {
-            amountIdx = idx
-          }
-        })
-
-        if (nameIdx !== -1) {
-          headerIndices = { nameIdx, qtyIdx, priceIdx, amountIdx }
-          continue
-        }
-      }
-
-      // Skip summary / tax / total rows
-      if (cols.some((c) => /subtotal|tax|total|grand|cgst|sgst/i.test(c))) {
-        continue
-      }
-
-      let name = ''
-      let qty = 1
-      let unitPrice = 0
-      let total = 0
-
-      if (headerIndices && headerIndices.nameIdx !== -1) {
-        name = cols[headerIndices.nameIdx] || ''
-        if (headerIndices.qtyIdx !== -1 && cols[headerIndices.qtyIdx]) {
-          qty = parseFloat(cols[headerIndices.qtyIdx].replace(/[^0-9.]/g, '')) || 1
-        }
-        if (headerIndices.priceIdx !== -1 && cols[headerIndices.priceIdx]) {
-          unitPrice = parseFloat(cols[headerIndices.priceIdx].replace(/[^0-9.]/g, '')) || 0
-        }
-        if (headerIndices.amountIdx !== -1 && cols[headerIndices.amountIdx]) {
-          total = parseFloat(cols[headerIndices.amountIdx].replace(/[^0-9.]/g, '')) || (unitPrice * qty)
-        }
-      } else {
-        // Fallback for headerless tables
-        if (cols.length >= 6) {
-          // [slNo, name, hsn, qty, price, total]
-          name = cols[1]
-          qty = parseFloat(cols[3].replace(/[^0-9.]/g, '')) || 1
-          unitPrice = parseFloat(cols[4].replace(/[^0-9.]/g, '')) || 0
-          total = parseFloat(cols[5].replace(/[^0-9.]/g, '')) || (unitPrice * qty)
-        } else if (cols.length === 5) {
-          // [slNo, name, qty, price, total]
-          name = cols[1]
-          qty = parseFloat(cols[2].replace(/[^0-9.]/g, '')) || 1
-          unitPrice = parseFloat(cols[3].replace(/[^0-9.]/g, '')) || 0
-          total = parseFloat(cols[4].replace(/[^0-9.]/g, '')) || (unitPrice * qty)
-        } else if (cols.length === 4) {
-          // [name, qty, price, total]
-          name = cols[0]
-          qty = parseFloat(cols[1].replace(/[^0-9.]/g, '')) || 1
-          unitPrice = parseFloat(cols[2].replace(/[^0-9.]/g, '')) || 0
-          total = parseFloat(cols[3].replace(/[^0-9.]/g, '')) || (unitPrice * qty)
-        }
-      }
-
-      if (name && !/subtotal|tax|total|grand|cgst|sgst/i.test(name)) {
-        const unitPricePaise = Math.round(unitPrice * 100)
-        const totalPaise = Math.round((total || unitPrice * qty) * 100)
-        items.push({
-          name: name.replace(/[*_]/g, '').trim(),
-          quantity: Math.max(1, Math.round(qty)),
-          unitPricePaise,
-          totalPaise,
-        })
-      }
-    }
-  }
-
-  return items
 }
 
 async function callNvidiaModel(
@@ -155,8 +35,8 @@ async function callNvidiaModel(
           ],
         },
       ],
-      max_tokens: 1500,
-      temperature: 0.2,
+      max_tokens: 2000,
+      temperature: 0.1,
     }),
     signal: AbortSignal.timeout(timeoutMs),
   })
@@ -176,7 +56,7 @@ async function callNvidiaModel(
 /**
  * POST /api/vision
  * Analyzes an image with vision models via NVIDIA NIM.
- * Includes automatic failover to Llama 3.2 11B Vision if DiffusionGemma experiences high queue times.
+ * Returns exact raw OCR text first, and parsed items with quantity, unit price, and total.
  */
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.NVIDIA_API_KEY
@@ -225,45 +105,91 @@ export async function POST(request: Request): Promise<Response> {
     )
   }
 
-  const systemOrUserPrompt =
-    userPrompt && userPrompt.trim().length > 0
-      ? `${userPrompt.trim()} Important: when creating the items table, maintain separate columns for SL No, Item Description, HSN/SAC (if present), QTY, Unit Price, and Amount. Ensure HSN/SAC is never placed in the quantity or price column.`
-      : 'Please perform a comprehensive visual and textual analysis of this image. Extract document title, invoice number, date, vendor, customer, payment details, subtotal, taxes (CGST/SGST), and grand total. In the line items table, include separate columns for: SL. NO., ITEM DESCRIPTION, HSN/SAC (if present), QTY, UNIT PRICE, and AMOUNT. Ensure HSN/SAC is strictly kept in its own column.'
+  const systemPrompt = `You are a precision OCR engine and receipt parsing specialist.
+Analyze this receipt/bill image with absolute accuracy.
 
-  const primaryModel = requestedModel || process.env.NVIDIA_VISION_MODEL || 'google/diffusiongemma-26b-a4b-it'
-  const fallbackModel = 'meta/llama-3.2-11b-vision-instruct'
+You MUST provide your response in two explicit parts:
+
+PART 1: EXACT TRANSCRIBED TEXT (RAW OCR FIRST)
+Transcribe EVERY line of text visible on this receipt from top to bottom exactly as printed.
+Include store/restaurant name, address, phone number, GSTIN, dates, token numbers, table headers, item lines, quantities, unit prices, amounts, taxes, and totals verbatim with no omissions.
+Enclose the exact text inside:
+\`\`\`raw_text
+[Exact verbatim transcription here]
+\`\`\`
+
+PART 2: STRUCTURED PRODUCTS & TOTALS (STRICT JSON)
+Extract all purchased items/products into a strict JSON object.
+CRITICAL RULES FOR PRODUCTS:
+- "name": Clean item or dish name (e.g. "Chicken Biriyani", "Meals").
+- "quantity": Number of units purchased (integer >= 1, e.g. 3, 1).
+- "unit_price": Price per single unit in currency units (e.g. 180.00).
+- "total": Line total for this item in currency units (e.g. 540.00).
+- MATHEMATICAL INVARIANT: quantity * unit_price MUST EQUAL total (e.g. 3 * 180 = 540). NEVER confuse unit price with quantity!
+- DO NOT list subtotal, CGST, SGST, GST, or Grand Total as products. Put them in the root fields.
+
+Enclose the JSON inside:
+\`\`\`json
+{
+  "vendor": "Restaurant or store name",
+  "date": "Date if shown",
+  "invoice_number": "Bill or token number",
+  "items": [
+    {
+      "name": "Exact Item Name",
+      "quantity": 3,
+      "unit_price": 180.00,
+      "total": 540.00
+    }
+  ],
+  "subtotal": 660.00,
+  "cgst": 16.50,
+  "sgst": 16.50,
+  "tax": 33.00,
+  "grand_total": 693.00
+}
+\`\`\`
+`
+
+  const fullPrompt =
+    userPrompt && userPrompt.trim().length > 0 && !userPrompt.includes('Transcribe')
+      ? `${userPrompt.trim()}\n\n${systemPrompt}`
+      : systemPrompt
+
+  const primaryModel = requestedModel || process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-11b-vision-instruct'
+  const fallbackModel = 'google/diffusiongemma-26b-a4b-it'
 
   let activeModelUsed = primaryModel
   let fallbackUsed = false
   let description = ''
   let durationMs = 0
 
-  // 1. Try Primary Model (give 30 seconds)
+  // 1. Try Primary Model (give 35 seconds)
   try {
     const result = await callNvidiaModel(
       primaryModel,
-      systemOrUserPrompt,
+      fullPrompt,
       image,
       apiKey,
       apiBaseUrl,
-      primaryModel === fallbackModel ? 50000 : 30000
+      35000
     )
     description = result.description
     durationMs = result.durationMs
   } catch (primaryError: unknown) {
     console.warn(`Primary model ${primaryModel} failed or timed out:`, primaryError)
 
-    // If primary was not the fallback model, automatically failover to meta/llama-3.2-11b-vision-instruct!
+    // Fallback model
     if (primaryModel !== fallbackModel) {
       try {
-        console.log(`Failing over to fast vision model: ${fallbackModel}...`)
+        console.log(`Failing over to vision model: ${fallbackModel}...`)
         const fallbackResult = await callNvidiaModel(
           fallbackModel,
-          systemOrUserPrompt,
+          fullPrompt,
           image,
           apiKey,
           apiBaseUrl,
-          40000
+          45000
         )
         description = fallbackResult.description
         durationMs = fallbackResult.durationMs
@@ -297,14 +223,23 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  const detectedItems = parseItemsFromDescription(description)
+  const parsed = parseReceiptResponse(description)
 
   return NextResponse.json({
     ok: true,
     model: activeModelUsed,
     fallbackUsed,
     durationMs,
+    rawText: parsed.rawText,
+    vendor: parsed.vendor,
+    date: parsed.date,
+    invoiceNumber: parsed.invoiceNumber,
+    subtotalPaise: parsed.subtotalPaise,
+    cgstPaise: parsed.cgstPaise,
+    sgstPaise: parsed.sgstPaise,
+    taxPaise: parsed.taxPaise,
+    grandTotalPaise: parsed.grandTotalPaise,
+    detectedItems: parsed.items,
     description,
-    detectedItems,
   })
 }
