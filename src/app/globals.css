@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Off-white page, white surfaces, restrained indigo primary. */
+  --color-background: #f5f6fa;
+  --color-foreground: #1b1e2b;
+  --color-card: #ffffff;
+  --color-card-foreground: #1b1e2b;
+  --color-muted: #eef0f6;
+  --color-muted-foreground: #64708a;
+  --color-border: #e3e6ee;
+  --color-primary: #4f46e5;
+  --color-primary-foreground: #ffffff;
+  --color-success: #16a34a;
+  --color-success-foreground: #ffffff;
+  --color-danger: #dc2626;
+  --color-danger-foreground: #ffffff;
+  --color-warning: #b45309;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Mobile expandable sections (details/summary) */
+details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Printable results page */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-reset {
+    padding-left: 0 !important;
+    max-width: none !important;
+  }
+  body {
+    background: #ffffff;
+  }
+}
