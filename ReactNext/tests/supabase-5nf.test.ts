@@ -87,3 +87,4 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
     expect(res2.displayName).toBe('Google User Updated')
   })
 })
+

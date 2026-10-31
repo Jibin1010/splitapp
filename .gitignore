@@ -52,3 +52,5 @@ flutter/splitapp/macos/Flutter/ephemeral/
 .vscode/
 *.swp
 *.swo
+.vercel
+.env*

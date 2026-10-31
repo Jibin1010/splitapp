@@ -134,3 +134,4 @@ npx vitest run tests/phone-verification.test.ts
 3. Set the Root Directory to `ReactNext` (or use the root `vercel.json`).
 4. Add the `DATABASE_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` environment variables in Vercel Project Settings.
 5. Deploy!
+
