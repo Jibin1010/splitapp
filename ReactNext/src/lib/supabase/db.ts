@@ -3,7 +3,8 @@ import crypto from 'crypto'
 
 const SUPABASE_DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://postgres:Jibin%40supabase.com10@db.waqyadioyacpuwqjnmui.supabase.co:5432/postgres'
+  process.env.SUPABASE_POSTGRES_URL ||
+  'postgresql://postgres@localhost:5432/postgres'
 
 // Initialize PostgreSQL connection pool with SSL for Supabase
 export const pool = new Pool({
@@ -29,7 +30,7 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
 }
 
 // -----------------------------------------------------------------------------
-// 1. Google OAuth Cloud Authentication (5NF)
+// 1. Google OAuth Cloud Authentication (5NF) with Auto-Linking
 // -----------------------------------------------------------------------------
 export async function authenticateGoogleUser(params: {
   googleSub: string
@@ -37,17 +38,19 @@ export async function authenticateGoogleUser(params: {
   name?: string
   avatarUrl?: string
   rawProfile?: any
+  currentIdentityId?: string
 }) {
   const client = await pool.connect()
   try {
     const res = await client.query(
-      `SELECT * FROM public.cloud_authenticate_google($1, $2, $3, $4, $5);`,
+      `SELECT * FROM public.cloud_authenticate_google($1, $2, $3, $4, $5, $6);`,
       [
         params.googleSub,
         params.email.toLowerCase().trim(),
         params.name || '',
         params.avatarUrl || null,
         JSON.stringify(params.rawProfile || {}),
+        params.currentIdentityId || null,
       ]
     )
 
@@ -58,7 +61,49 @@ export async function authenticateGoogleUser(params: {
       email: row.email,
       avatarUrl: row.avatar_url,
       isNewUser: row.is_new_user,
+      isLinked: row.is_linked,
     }
+  } finally {
+    client.release()
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 1b. WhatsApp Phone Identity Linking (5NF)
+// -----------------------------------------------------------------------------
+export async function linkPhoneIdentity(params: {
+  phone: string
+  targetIdentityId?: string
+}) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `SELECT * FROM public.cloud_link_phone_identity($1, $2);`,
+      [params.phone.trim(), params.targetIdentityId || null]
+    )
+    const row = res.rows[0]
+    return {
+      identityId: row?.identity_id,
+      phoneNumber: row?.phone_number,
+      isLinked: row?.is_linked,
+      isMerged: row?.is_merged,
+    }
+  } finally {
+    client.release()
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 1c. Get 5NF Unified Identity (Safe Profile - No Hashes or Secrets Exposed)
+// -----------------------------------------------------------------------------
+export async function getUnifiedIdentity(identityId: string) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `SELECT public.cloud_get_unified_identity($1) AS unified;`,
+      [identityId]
+    )
+    return res.rows[0]?.unified || null
   } finally {
     client.release()
   }

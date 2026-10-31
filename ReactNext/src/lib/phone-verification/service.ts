@@ -12,6 +12,7 @@ import {
   VerificationRepository,
   WebhookEventEntity,
 } from './repository'
+import { linkPhoneIdentity } from '@/lib/supabase/db'
 
 export interface CreateChallengeOptions {
   rawPhone: string
@@ -36,6 +37,7 @@ export interface ProcessWebhookResult {
   reason?: string
   challengeId?: string
   phoneNumber?: string
+  identityId?: string
 }
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000 // Strict 5-minute expiration
@@ -248,6 +250,22 @@ export class PhoneVerificationService {
 
     // 9. Upsert verified user & record replay protection event
     await VerificationRepository.upsertVerifiedUser(challenge.phoneNumber)
+
+    // 9b. Supabase 5NF Account Linking:
+    // Link verified phone to active identity (challenge.userId) or create/update standalone 5NF phone identity
+    let cloudIdentityId = challenge.userId || null
+    try {
+      const linked = await linkPhoneIdentity({
+        phone: challenge.phoneNumber,
+        targetIdentityId: cloudIdentityId || undefined,
+      })
+      if (linked?.identityId) {
+        cloudIdentityId = linked.identityId
+      }
+    } catch (dbErr) {
+      console.error('Supabase 5NF phone linking error (non-fatal):', dbErr)
+    }
+
     await VerificationRepository.recordWebhookEvent({
       id: generateChallengeId(),
       whatsappMessageId,
@@ -262,6 +280,7 @@ export class PhoneVerificationService {
       status: 'VERIFIED',
       challengeId: challenge.id,
       phoneNumber: challenge.phoneNumber,
+      identityId: cloudIdentityId || undefined,
     }
   }
 

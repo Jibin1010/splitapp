@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyCloudSession, revokeCloudSession } from '@/lib/supabase/db'
+import { verifyCloudSession, revokeCloudSession, getUnifiedIdentity } from '@/lib/supabase/db'
 
 export async function GET(request: Request) {
   try {
@@ -23,6 +23,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ authenticated: false }, { status: 200 })
     }
 
+    const unified = await getUnifiedIdentity(session.identityId)
+
     return NextResponse.json({
       authenticated: true,
       user: {
@@ -32,6 +34,7 @@ export async function GET(request: Request) {
         email: session.email,
         avatarUrl: session.avatarUrl,
       },
+      unified,
     })
   } catch (error: any) {
     return NextResponse.json({ authenticated: false, error: error?.message }, { status: 500 })

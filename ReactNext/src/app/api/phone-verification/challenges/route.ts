@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { phoneVerification } from '@/lib/phone-verification/service'
+import { verifyCloudSession } from '@/lib/supabase/db'
 
 export async function POST(request: Request) {
   try {
@@ -18,11 +19,31 @@ export async function POST(request: Request) {
     const realIp = request.headers.get('x-real-ip')
     const clientIp = forwarded ? forwarded.split(',')[0].trim() : realIp || '127.0.0.1'
 
+    // Automatically associate challenge with authenticated cloud user if logged in
+    let userId = body?.userId
+    if (!userId) {
+      const authHeader = request.headers.get('authorization')
+      const cookieHeader = request.headers.get('cookie') || ''
+      let token: string | null = null
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7)
+      } else {
+        const match = cookieHeader.match(/cloud_session=([^;]+)/)
+        if (match) token = match[1]
+      }
+      if (token) {
+        const session = await verifyCloudSession(token)
+        if (session?.identityId) {
+          userId = session.identityId
+        }
+      }
+    }
+
     const result = await phoneVerification.createChallenge({
       rawPhone,
       clientIp,
       defaultCountryCode: body?.countryCode || '91',
-      userId: body?.userId,
+      userId,
     })
 
     if (!result.success) {

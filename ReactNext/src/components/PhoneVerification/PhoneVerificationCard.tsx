@@ -64,6 +64,17 @@ export function PhoneVerificationCard({
           const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '')
           const displayName = userName.trim() || `User ${cleanDigits.slice(-4)}`
 
+          // Link phone to active cloud identity in Supabase 5NF
+          try {
+            await fetch('/api/cloud-auth/link-phone', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ phone: verifiedPhone }),
+            })
+          } catch {
+            // Non-blocking if running standalone
+          }
+
           const user = {
             id: `wa-${cleanDigits.slice(-10)}`,
             name: displayName,

@@ -227,3 +227,40 @@ export async function logout(): Promise<void> {
     // ignore
   }
 }
+
+/**
+ * Explicitly links a verified phone number to the current user's 5NF cloud identity.
+ */
+export async function linkPhoneToCloud(
+  phone: string
+): Promise<{ success: boolean; linked?: any; unified?: any; error?: string }> {
+  try {
+    const res = await fetch('/api/cloud-auth/link-phone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    })
+    const data = await res.json()
+    return data
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to link phone' }
+  }
+}
+
+/**
+ * Retrieves the comprehensive 5NF unified profile for the currently logged in user.
+ */
+export async function getUnifiedProfile(): Promise<{
+  authenticated: boolean
+  user?: any
+  unified?: any
+  error?: string
+}> {
+  try {
+    const res = await fetch('/api/cloud-auth/me')
+    const data = await res.json()
+    return data
+  } catch (err: any) {
+    return { authenticated: false, error: err.message }
+  }
+}

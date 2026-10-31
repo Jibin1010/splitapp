@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { authenticateGoogleUser, createCloudSession } from '@/lib/supabase/db'
+import { authenticateGoogleUser, createCloudSession, verifyCloudSession, getUnifiedIdentity } from '@/lib/supabase/db'
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +10,26 @@ export async function POST(request: Request) {
     let email = profile?.email
     let name = profile?.name || profile?.given_name
     let picture = profile?.picture
+
+    // Check if user is already logged in to link account to active identity
+    let currentIdentityId: string | undefined = body?.currentIdentityId
+    if (!currentIdentityId) {
+      const authHeader = request.headers.get('authorization')
+      const cookieHeader = request.headers.get('cookie') || ''
+      let token: string | null = null
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7)
+      } else {
+        const match = cookieHeader.match(/cloud_session=([^;]+)/)
+        if (match) token = match[1]
+      }
+      if (token) {
+        const active = await verifyCloudSession(token)
+        if (active?.identityId) {
+          currentIdentityId = active.identityId
+        }
+      }
+    }
 
     // If an access token is provided, verify it directly against Google API in the cloud
     if (accessToken && (!googleSub || !email)) {
@@ -38,13 +58,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Upsert into Supabase 5NF database
+    // Upsert into Supabase 5NF database (auto-links if active session or matching verified email exists)
     const user = await authenticateGoogleUser({
       googleSub,
       email,
       name,
       avatarUrl: picture,
       rawProfile: profile || { sub: googleSub, email, name, picture },
+      currentIdentityId,
     })
 
     const forwarded = request.headers.get('x-forwarded-for')
@@ -52,6 +73,7 @@ export async function POST(request: Request) {
     const userAgent = request.headers.get('user-agent') || ''
 
     const session = await createCloudSession(user.identityId, clientIp, userAgent)
+    const unified = await getUnifiedIdentity(user.identityId)
 
     const response = NextResponse.json(
       {
@@ -62,7 +84,9 @@ export async function POST(request: Request) {
           email: user.email,
           avatarUrl: user.avatarUrl,
           isNewUser: user.isNewUser,
+          isLinked: user.isLinked,
         },
+        unified,
         sessionToken: session.sessionToken,
       },
       { status: 200 }
