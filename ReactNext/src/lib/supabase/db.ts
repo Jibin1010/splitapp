@@ -117,27 +117,31 @@ export async function registerLocalUser(params: {
   email: string
   password: string
   displayName?: string
+  targetIdentityId?: string
 }) {
   const client = await pool.connect()
   try {
     const { hash, salt } = hashPassword(params.password)
     const res = await client.query(
-      `SELECT * FROM public.cloud_register_local($1, $2, $3, $4, $5);`,
+      `SELECT * FROM public.cloud_register_local($1, $2, $3, $4, $5, $6);`,
       [
         params.username.toLowerCase().trim(),
         params.email.toLowerCase().trim(),
         params.displayName || params.username,
         hash,
         salt,
+        params.targetIdentityId || null,
       ]
     )
 
     const row = res.rows[0]
     return {
-      identityId: row.identity_id,
-      username: row.username,
-      email: row.email,
-      displayName: row.display_name,
+      identityId: row?.identity_id,
+      username: row?.username,
+      email: row?.email,
+      displayName: row?.display_name,
+      isNewUser: row?.is_new_user,
+      isLinked: row?.is_linked,
     }
   } finally {
     client.release()

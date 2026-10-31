@@ -198,5 +198,31 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       client.release()
     }
   })
+
+  it('8. should support seamless auto-registration and linking when user presses login or register', async () => {
+    const autoId = Date.now().toString(36) + '_auto'
+    const autoEmail = `auto_${autoId}@splitapp.io`
+    const autoPassword = 'AutoPassword987!'
+
+    // First attempt to register
+    const regRes = await registerLocalUser({
+      username: `auto_${autoId}`,
+      email: autoEmail,
+      password: autoPassword,
+      displayName: 'Auto User',
+    })
+
+    expect(regRes.identityId).toBeDefined()
+    expect(regRes.email).toBe(autoEmail)
+
+    // Second registration with same credentials succeeds and returns existing identity
+    const regAgain = await registerLocalUser({
+      username: `auto_${autoId}`,
+      email: autoEmail,
+      password: autoPassword,
+    })
+
+    expect(regAgain.identityId).toBe(regRes.identityId)
+  })
 })
 

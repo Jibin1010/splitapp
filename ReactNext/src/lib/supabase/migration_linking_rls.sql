@@ -446,3 +446,4 @@ CREATE POLICY "Bill settlements accessible via bill"
     );
 
 COMMIT;
+

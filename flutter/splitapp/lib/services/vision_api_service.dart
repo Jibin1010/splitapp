@@ -8,18 +8,19 @@ import 'vision_fallback.dart';
 export 'vision_fallback.dart';
 
 class VisionApiService {
-  static const String defaultApiKey =
-      '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';
   static const String defaultBaseUrl = 'https://integrate.api.nvidia.com/v1';
-  static const String defaultProxyUrl = 'http://localhost:3000';
+  static const String defaultProxyUrl = String.fromEnvironment(
+    'BACKEND_URL',
+    defaultValue: 'https://splitapp-ruddy.vercel.app',
+  );
   static const String systemPrompt = visionSystemPrompt;
 
-  final String apiKey;
+  final String? apiKey;
   final String apiBaseUrl;
   final String proxyBaseUrl;
 
   VisionApiService({
-    this.apiKey = defaultApiKey,
+    this.apiKey,
     this.apiBaseUrl = defaultBaseUrl,
     this.proxyBaseUrl = defaultProxyUrl,
   });
@@ -161,77 +162,49 @@ class VisionApiService {
     final primaryModel = requestedModel ?? 'meta/llama-3.2-11b-vision-instruct';
     const fallbackModel = 'google/diffusiongemma-26b-a4b-it';
 
-    // 1. If running on Web, use the Next.js proxy at /api/vision to avoid browser CORS errors
-    if (kIsWeb) {
-      final proxyRes = await _callProxy(
-        image: imageBase64OrUrl,
-        prompt: fullPrompt,
-        model: primaryModel,
-      );
-      if (proxyRes != null && proxyRes.ok) {
-        return proxyRes;
-      }
+    // 1. ALWAYS route vision via the secure cloud backend server proxy to keep API keys server-side
+    final proxyRes = await _callProxy(
+      image: imageBase64OrUrl,
+      prompt: fullPrompt,
+      model: primaryModel,
+    );
+    if (proxyRes != null && proxyRes.ok) {
+      return proxyRes;
     }
 
-    String activeModelUsed = primaryModel;
-    bool fallbackUsed = false;
-    String description = '';
-    int durationMs = 0;
-
-    // 2. Direct NVIDIA NIM call (supported in native Android/iOS or non-restricted environments)
-    try {
-      final res = await _callModel(
-        model: primaryModel,
-        prompt: fullPrompt,
-        image: imageBase64OrUrl,
-        timeout: const Duration(seconds: 35),
-      );
-      description = res.description;
-      durationMs = res.durationMs;
-    } catch (_) {
-      if (primaryModel != fallbackModel) {
-        try {
-          final fallbackRes = await _callModel(
-            model: fallbackModel,
-            prompt: fullPrompt,
-            image: imageBase64OrUrl,
-            timeout: const Duration(seconds: 40),
-          );
-          description = fallbackRes.description;
-          durationMs = fallbackRes.durationMs;
-          activeModelUsed = fallbackModel;
-          fallbackUsed = true;
-        } catch (_) {
-          // Both models failed or timed out: provide intelligent local fallback
-          return getSmartFallbackAnalysis(
-            preferredModel: fallbackModel,
-          );
-        }
-      } else {
-        return getSmartFallbackAnalysis(
-          preferredModel: primaryModel,
+    // 2. Direct NVIDIA NIM call only if a custom apiKey was explicitly supplied at runtime
+    if (apiKey != null && apiKey!.trim().isNotEmpty) {
+      try {
+        final res = await _callModel(
+          model: primaryModel,
+          prompt: fullPrompt,
+          image: imageBase64OrUrl,
+          timeout: const Duration(seconds: 35),
         );
-      }
+        final parsed = parseReceiptResponse(res.description);
+        return VisionApiResponse(
+          ok: true,
+          model: primaryModel,
+          fallbackUsed: false,
+          durationMs: res.durationMs,
+          rawText: parsed.rawText,
+          vendor: parsed.vendor,
+          date: parsed.date,
+          invoiceNumber: parsed.invoiceNumber,
+          subtotalPaise: parsed.subtotalPaise,
+          cgstPaise: parsed.cgstPaise,
+          sgstPaise: parsed.sgstPaise,
+          taxPaise: parsed.taxPaise,
+          grandTotalPaise: parsed.grandTotalPaise,
+          detectedItems: parsed.items,
+          description: res.description,
+        );
+      } catch (_) {}
     }
 
-    final parsed = parseReceiptResponse(description);
-
-    return VisionApiResponse(
-      ok: true,
-      model: activeModelUsed,
-      fallbackUsed: fallbackUsed,
-      durationMs: durationMs,
-      rawText: parsed.rawText,
-      vendor: parsed.vendor,
-      date: parsed.date,
-      invoiceNumber: parsed.invoiceNumber,
-      subtotalPaise: parsed.subtotalPaise,
-      cgstPaise: parsed.cgstPaise,
-      sgstPaise: parsed.sgstPaise,
-      taxPaise: parsed.taxPaise,
-      grandTotalPaise: parsed.grandTotalPaise,
-      detectedItems: parsed.items,
-      description: description,
+    // 3. Intelligent fallback when cloud backend or model is temporarily unavailable
+    return getSmartFallbackAnalysis(
+      preferredModel: primaryModel,
     );
   }
 }

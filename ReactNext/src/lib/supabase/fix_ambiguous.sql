@@ -223,3 +223,4 @@ BEGIN
         v_is_merged;
 END;
 $$;
+

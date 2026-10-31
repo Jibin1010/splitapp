@@ -16,6 +16,8 @@ import {
   User,
 } from 'lucide-react'
 import {
+  AuthUser,
+  getStoredUser,
   loginWithCredentials,
   registerWithCredentials,
   saveStoredUser,
@@ -52,6 +54,11 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
   const [googleLoading, setGoogleLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null)
+  const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(null)
+
+  React.useEffect(() => {
+    setCurrentUser(getStoredUser())
+  }, [])
 
   const handleGoogleLogin = () => {
     setError(null)
@@ -191,7 +198,11 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
       return
     }
 
-    setSuccessMsg(`Welcome back, ${result.user.name}! Redirecting...`)
+    setSuccessMsg(
+      result.user.name
+        ? `Welcome, ${result.user.name}! Redirecting to dashboard...`
+        : 'Authenticated successfully! Redirecting...'
+    )
 
     // Save user ID to localStorage so activePerson matches
     saveActivePersonId(result.user.id)
@@ -230,7 +241,7 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
       return
     }
 
-    setSuccessMsg(`Account created for ${result.user.name}! Redirecting...`)
+    setSuccessMsg(`Welcome, ${result.user.name}! Redirecting to dashboard...`)
     saveActivePersonId(result.user.id)
 
     setTimeout(() => {
@@ -241,6 +252,28 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
 
   return (
     <div className="w-full">
+      {/* Connected Account Banner if already signed in */}
+      {currentUser && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-950 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              Connected as <strong>{currentUser.name}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onSuccess?.()
+              router.push('/split')
+            }}
+            className="flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
+          >
+            Go to App <ArrowRight className="size-3" />
+          </button>
+        </div>
+      )}
+
       {/* Tab Switcher */}
       <div className="flex rounded-2xl bg-slate-100 p-1 mb-6 border border-slate-200/60">
         <button
