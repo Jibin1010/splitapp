@@ -1,31 +1,54 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# OS metadata
 .DS_Store
+Thumbs.db
 *.pem
 
-# debug
+# Environment & Secrets (NEVER commit credentials)
+.env
+.env.local
+.env.*.local
+*.env
+ReactNext/.env
+ReactNext/.env.local
+ReactNext/.env.*.local
+supabase/credentials.txt
+*client_secret*.json
+steam-glass*.json
+**/google drive api/
+google drive api/
+
+# Node.js & Next.js
+node_modules/
+ReactNext/node_modules/
+.next/
+ReactNext/.next/
+out/
+ReactNext/out/
+build/
+ReactNext/build/
+*.tsbuildinfo
+ReactNext/*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# env files — keep secrets out of version control
-.env
-.env.local
-.env*.local
+# Flutter / Dart
+.dart_tool/
+flutter/splitapp/.dart_tool/
+.packages
+flutter/splitapp/.packages
+build/
+flutter/splitapp/build/
+flutter/splitapp/ios/Pods/
+flutter/splitapp/ios/.symlinks/
+flutter/splitapp/ios/Flutter/Flutter.framework
+flutter/splitapp/ios/Flutter/Flutter.podspec
+flutter/splitapp/ios/Flutter/ephemeral/
+flutter/splitapp/macos/Pods/
+flutter/splitapp/macos/Flutter/ephemeral/
 
-# typescript
-*.tsbuildinfo
-
-# testing
-/coverage
+# Scratch & IDE
+.idea/
+.vscode/
+*.swp
+*.swo
