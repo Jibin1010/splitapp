@@ -35,7 +35,7 @@ class VisionApiService {
     return _callProxy(
       image: image,
       prompt: prompt ?? systemPrompt,
-      model: model ?? 'meta/llama-3.2-11b-vision-instruct',
+      model: model ?? 'google/diffusiongemma-26b-a4b-it',
       timeout: timeout,
     );
   }
@@ -159,7 +159,7 @@ class VisionApiService {
         ? '${userPrompt.trim()}\n\n$systemPrompt'
         : systemPrompt;
 
-    final primaryModel = requestedModel ?? 'meta/llama-3.2-11b-vision-instruct';
+    final primaryModel = requestedModel ?? 'google/diffusiongemma-26b-a4b-it';
     const fallbackModel = 'google/diffusiongemma-26b-a4b-it';
 
     // 1. ALWAYS route vision via the secure cloud backend server proxy to keep API keys server-side

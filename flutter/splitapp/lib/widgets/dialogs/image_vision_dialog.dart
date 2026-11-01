@@ -46,7 +46,7 @@ class _ImageVisionDialogState extends State<ImageVisionDialog> {
   String? _imageBytesBase64;
   Uint8List? _imageRawBytes;
   String _imageName = '';
-  String _selectedModel = 'meta/llama-3.2-11b-vision-instruct';
+  String _selectedModel = 'google/diffusiongemma-26b-a4b-it';
   String _selectedPromptId = 'detailed';
   bool _loading = false;
   int _elapsedSeconds = 0;

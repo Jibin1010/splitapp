@@ -100,7 +100,7 @@ Thank you for dining with us!
 
   return VisionApiResponse(
     ok: true,
-    model: preferredModel ?? 'meta/llama-3.2-11b-vision-instruct',
+    model: preferredModel ?? 'google/diffusiongemma-26b-a4b-it',
     fallbackUsed: true,
     durationMs: 780,
     rawText: rawText,

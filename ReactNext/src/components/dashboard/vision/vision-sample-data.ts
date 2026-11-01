@@ -30,7 +30,7 @@ export const SAMPLE_ITEMS: EditableDetectedItem[] = [
 
 export const SAMPLE_VISION_RESULT: VisionApiResponse = {
   ok: true,
-  model: 'meta/llama-3.2-11b-vision-instruct',
+  model: 'google/diffusiongemma-26b-a4b-it',
   vendor: 'Duniyav Bir',
   date: '03/10/26',
   invoiceNumber: '99307',

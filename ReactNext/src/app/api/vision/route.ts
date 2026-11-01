@@ -2,11 +2,18 @@ import { NextResponse } from 'next/server'
 import { parseReceiptResponse } from '@/lib/vision-parser'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 interface VisionRequestBody {
   image?: string
   prompt?: string
   model?: string
+}
+
+const MODEL_ALIASES: Record<string, string> = {
+  'meta/llama-3.2-11b-vision-instruct': 'google/diffusiongemma-26b-a4b-it',
+  'meta/llama-3.2-90b-vision-instruct': 'google/diffusiongemma-26b-a4b-it',
+  'llama-3.2-11b': 'google/diffusiongemma-26b-a4b-it',
 }
 
 async function callNvidiaModel(
@@ -49,7 +56,11 @@ async function callNvidiaModel(
   }
 
   const data = await upstreamRes.json()
-  const description: string = data?.choices?.[0]?.message?.content || 'No description returned.'
+  const message = data?.choices?.[0]?.message
+  const description: string =
+    message?.content ||
+    message?.reasoning_content ||
+    ''
   return { description, durationMs }
 }
 
@@ -195,8 +206,9 @@ Enclose the JSON inside:
     }, { headers: corsHeaders })
   }
 
-  const primaryModel = requestedModel || process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-11b-vision-instruct'
-  const fallbackModel = 'meta/llama-3.2-11b-vision-instruct'
+  const rawRequested = requestedModel || process.env.NVIDIA_VISION_MODEL || 'google/diffusiongemma-26b-a4b-it'
+  const primaryModel = MODEL_ALIASES[rawRequested] || rawRequested || 'google/diffusiongemma-26b-a4b-it'
+  const fallbackModel = primaryModel === 'google/diffusiongemma-26b-a4b-it' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' : 'google/diffusiongemma-26b-a4b-it'
 
   let activeModelUsed = primaryModel
   let fallbackUsed = false
@@ -204,7 +216,7 @@ Enclose the JSON inside:
   let durationMs = 0
 
   // Generous timeout for precision vision OCR inference
-  const primaryTimeout = primaryModel === fallbackModel ? 48000 : 20000
+  const primaryTimeout = 28000
 
   // 1. Try Primary Model
   try {
@@ -231,7 +243,7 @@ Enclose the JSON inside:
           image,
           apiKey,
           apiBaseUrl,
-          35000
+          25000
         )
         description = fallbackResult.description
         durationMs = fallbackResult.durationMs

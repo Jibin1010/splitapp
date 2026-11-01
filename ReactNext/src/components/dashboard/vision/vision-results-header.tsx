@@ -50,11 +50,11 @@ export function VisionResultsHeader({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => onRetryWithModel('meta/llama-3.2-11b-vision-instruct')}
+                onClick={() => onRetryWithModel('google/diffusiongemma-26b-a4b-it')}
                 className="gap-1.5 text-xs font-semibold bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-2xs"
               >
                 <Zap className="size-3 text-indigo-600" />
-                Retry with Llama 3.2 Vision (~1s)
+                Retry with DiffusionGemma 26B
               </Button>
             )}
             {onLoadSample && (
@@ -79,7 +79,7 @@ export function VisionResultsHeader({
             <span>{result.error?.message || 'Vision analysis could not complete in time.'}</span>
           </div>
           <p className="text-[11px] text-rose-700 leading-relaxed pl-6">
-            NVIDIA Cloud Vision server is experiencing queue congestion. You can retry with <strong>Llama 3.2 11B Vision</strong> above or load sample demo data to test calculations instantly.
+            NVIDIA Cloud Vision server is experiencing queue congestion. You can retry with <strong>Google DiffusionGemma 26B</strong> above or load sample demo data to test calculations instantly.
           </p>
         </div>
       </div>

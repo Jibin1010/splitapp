@@ -50,24 +50,24 @@ export interface VisionModelOption {
 
 export const AVAILABLE_MODELS: VisionModelOption[] = [
   {
-    id: 'meta/llama-3.2-11b-vision-instruct',
-    name: 'Llama 3.2 11B Vision',
-    badge: 'Recommended · High Accuracy',
-    subtitle: 'Fast and accurate receipt OCR & product extraction',
+    id: 'google/diffusiongemma-26b-a4b-it',
+    name: 'Google DiffusionGemma 26B',
+    badge: 'Recommended · High Precision OCR',
+    subtitle: 'Fast, verbatim receipt OCR & automatic mathematical reconciliation',
     isRecommended: true,
   },
   {
-    id: 'google/diffusiongemma-26b-a4b-it',
-    name: 'Google DiffusionGemma 26B',
-    badge: 'Experimental',
-    subtitle: 'Deep analysis (may experience server queue delays)',
+    id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+    name: 'Nemotron Omni Reasoning 30B',
+    badge: 'Reasoning Engine',
+    subtitle: 'Deep reasoning analysis for complex or faded bills',
     isRecommended: false,
   },
   {
     id: 'nvidia/nemotron-parse-2.0',
     name: 'Nemotron Parse 2.0',
     badge: 'Fast OCR',
-    subtitle: 'Ultra fast for clean receipts',
+    subtitle: 'Ultra fast document parsing for receipts',
     isRecommended: false,
   },
 ]

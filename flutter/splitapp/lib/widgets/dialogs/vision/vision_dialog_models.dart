@@ -11,14 +11,14 @@ class VisionModelChoice {
 
 const List<VisionModelChoice> availableVisionModels = [
   VisionModelChoice(
-    id: 'meta/llama-3.2-11b-vision-instruct',
-    name: 'Llama 3.2 11B Vision',
-    badge: 'Recommended · High Accuracy',
-  ),
-  VisionModelChoice(
     id: 'google/diffusiongemma-26b-a4b-it',
     name: 'Google DiffusionGemma 26B',
-    badge: 'Experimental',
+    badge: 'Recommended · High Precision OCR',
+  ),
+  VisionModelChoice(
+    id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+    name: 'Nemotron Omni Reasoning 30B',
+    badge: 'Reasoning Engine',
   ),
   VisionModelChoice(
     id: 'nvidia/nemotron-parse-2.0',
