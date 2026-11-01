@@ -12,6 +12,9 @@ ReactNext/.env
 ReactNext/.env.local
 ReactNext/.env.*.local
 supabase/credentials.txt
+supabase/supabase.pdf
+supabase/*.pdf
+supabase/screenshot.jpg
 *client_secret*.json
 steam-glass*.json
 **/google drive api/

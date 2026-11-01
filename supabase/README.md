@@ -10,15 +10,12 @@
 - **Dashboard URL:** `https://supabase.com/dashboard/new/tazzzzevucuntkvekfow?projectName=Jibin1010%27s+Project`
 
 ## 2. Credentials
-- **Raw Database Password:**
+- Stored securely in server environment variables (`DATABASE_URL`).
+- **Postgres URI Format:**
   ```text
-  Jibin@supabase.com10
+  postgresql://postgres.[project-ref]:[PASSWORD]@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres
   ```
-- **Postgres URL Encoded Password:**
-  ```text
-  Jibin%40supabase.com10
-  ```
-  *(Note: Special character `@` is percent-encoded as `%40` in connection URIs)*
+  *(Note: Special characters like `@` must be percent-encoded as `%40` in connection URIs)*
 
 ## 3. Files in this folder
 - `supabase.pdf` — Single-page document with project details and dashboard screenshot.
