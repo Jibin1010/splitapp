@@ -224,5 +224,38 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
 
     expect(regAgain.identityId).toBe(regRes.identityId)
   })
+
+  it('9. should preserve active session and data when already-connected user calls register', async () => {
+    const connId = Date.now().toString(36) + '_conn'
+    const googleSub = `sub_conn_${connId}`
+    const googleEmail = `google_${connId}@splitapp.io`
+
+    // User originally logs in with Google
+    const googleUser = await authenticateGoogleUser({
+      googleSub,
+      email: googleEmail,
+      name: 'Connected User',
+    })
+
+    const originalIdentityId = googleUser.identityId
+    expect(originalIdentityId).toBeDefined()
+
+    // While logged in, user attempts to create a password account
+    const regResult = await registerLocalUser({
+      username: `user_${connId}`,
+      email: `local_${connId}@splitapp.io`,
+      password: 'StrongPass123!',
+      targetIdentityId: originalIdentityId,
+    })
+
+    // Must preserve the EXACT same identity_id so all bills and data remain attached
+    expect(regResult.identityId).toBe(originalIdentityId)
+    expect(regResult.isLinked).toBe(true)
+
+    // Verify both auth methods exist on this identity
+    const unified = await getUnifiedIdentity(originalIdentityId)
+    expect(unified.authMethods).toContain('google_oauth')
+    expect(unified.authMethods).toContain('local_password')
+  })
 })
 

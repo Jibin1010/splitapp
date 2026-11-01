@@ -57,7 +57,28 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(null)
 
   React.useEffect(() => {
-    setCurrentUser(getStoredUser())
+    const localUser = getStoredUser()
+    if (localUser) {
+      setCurrentUser(localUser)
+    } else {
+      // Check if user has an active cloud session cookie
+      fetch('/api/cloud-auth/session')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.authenticated && data?.user) {
+            const user: AuthUser = {
+              id: data.user.id,
+              name: data.user.name || data.user.username || 'User',
+              email: data.user.email || '',
+              photo: data.user.avatarUrl || null,
+              createdAt: new Date().toISOString(),
+            }
+            saveStoredUser(user)
+            setCurrentUser(user)
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
 
   const handleGoogleLogin = () => {
@@ -217,6 +238,40 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
     e.preventDefault()
     setError(null)
 
+    // SAFEGUARD: If user is already logged in, DO A LOGIN / RETAIN SESSION instead of creating a new account!
+    // This protects active bills, person assignments, and draft calculations from being wiped.
+    if (currentUser) {
+      const cleanEmail = regEmail.trim().toLowerCase()
+      // If email matches current user, or if no email was entered:
+      if (!cleanEmail || cleanEmail === currentUser.email?.toLowerCase()) {
+        setSuccessMsg(
+          `You are already signed in as ${currentUser.name}! Your bill data and active session are preserved.`
+        )
+        saveActivePersonId(currentUser.id)
+        setTimeout(() => {
+          onSuccess?.()
+          router.push('/split')
+        }, 600)
+        return
+      }
+
+      // If they entered a different email, check if that account exists: do a login instead!
+      setLoading(true)
+      const existingLogin = await loginWithCredentials(cleanEmail, regPassword)
+      setLoading(false)
+      if (existingLogin.success && existingLogin.user) {
+        setSuccessMsg(
+          `Welcome back, ${existingLogin.user.name}! Logged in safely without data loss.`
+        )
+        saveActivePersonId(existingLogin.user.id)
+        setTimeout(() => {
+          onSuccess?.()
+          router.push('/split')
+        }, 600)
+        return
+      }
+    }
+
     if (!regName || !regEmail || !regPassword) {
       setError('Please complete all required fields.')
       return
@@ -233,6 +288,22 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
     }
 
     setLoading(true)
+
+    // CHECK FIRST: If an account already exists with this email, DO A LOGIN INSTEAD OF CREATING ACCOUNT!
+    const tryLoginFirst = await loginWithCredentials(regEmail, regPassword)
+    if (tryLoginFirst.success && tryLoginFirst.user) {
+      setLoading(false)
+      setSuccessMsg(
+        `Welcome back, ${tryLoginFirst.user.name}! You already had an account, so we logged you in safely without overwriting your data.`
+      )
+      saveActivePersonId(tryLoginFirst.user.id)
+      setTimeout(() => {
+        onSuccess?.()
+        router.push('/split')
+      }, 600)
+      return
+    }
+
     const result = await registerWithCredentials(regName, regEmail, regPassword)
     setLoading(false)
 
@@ -271,6 +342,31 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
           >
             Go to App <ArrowRight className="size-3" />
           </button>
+        </div>
+      )}
+
+      {/* Safety Alert for Register mode when already logged in */}
+      {currentUser && mode === 'register' && (
+        <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-950 shadow-xs space-y-2">
+          <div className="flex items-center gap-1.5 font-bold text-blue-900">
+            <Sparkles className="size-3.5 text-blue-600" />
+            <span>Active Session Protected</span>
+          </div>
+          <p className="text-blue-800 leading-relaxed">
+            You are already logged in as <strong>{currentUser.name}</strong>. Submitting will preserve your existing bill data and session instead of wiping it.
+          </p>
+          <div className="pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                onSuccess?.()
+                router.push('/split')
+              }}
+              className="rounded-xl bg-blue-600 px-3 py-1.5 font-bold text-white hover:bg-blue-700 transition-colors cursor-pointer inline-flex items-center gap-1"
+            >
+              Continue with {currentUser.name} <ArrowRight className="size-3" />
+            </button>
+          </div>
         </div>
       )}
 
