@@ -57,14 +57,25 @@ export function LandingVideoCard() {
     }
   }, [])
 
-  const togglePlay = () => {
+  const togglePlay = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     const video = videoRef.current
     if (!video) return
-    if (isPlaying) {
+    if (video.paused) {
+      const playPromise = video.play()
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Playback blocked or failed, retrying muted:', err)
+            video.muted = true
+            setIsMuted(true)
+            video.play().then(() => setIsPlaying(true)).catch(() => {})
+          })
+      }
+    } else {
       video.pause()
       setIsPlaying(false)
-    } else {
-      video.play().then(() => setIsPlaying(true)).catch(() => {})
     }
   }
 
@@ -103,15 +114,18 @@ export function LandingVideoCard() {
         {/* Real Video from Production Folder with Upgraded Cover Image */}
         <video
           ref={videoRef}
-          src="/videos/production/hero-video.mp4"
           poster="/images/production/hero-video-poster.jpg"
           playsInline
           loop
           muted={isMuted}
-          preload="metadata"
+          preload="auto"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
           className="size-full object-cover"
           suppressHydrationWarning
-        />
+        >
+          <source src="/videos/production/hero-video.mp4" type="video/mp4" />
+        </video>
 
         {/* Center Frosted Glass Play Button — Visible only when paused/stopped */}
         {!isPlaying && (
