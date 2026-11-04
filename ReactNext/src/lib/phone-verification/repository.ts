@@ -80,6 +80,14 @@ export const VerificationRepository = {
     return count
   },
 
+  async cancelChallenge(id: string): Promise<boolean> {
+    const c = challenges.get(id)
+    if (!c) return false
+    c.status = 'CANCELLED'
+    challenges.set(id, c)
+    return true
+  },
+
   /**
    * Atomic state transition: marks a challenge as VERIFIED only if current status is PENDING and not expired.
    * Returns true if transition succeeded, false if already verified/expired/cancelled (race-condition proof).

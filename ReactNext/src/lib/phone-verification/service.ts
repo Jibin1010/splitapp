@@ -41,6 +41,7 @@ export interface ProcessWebhookResult {
 }
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000 // Strict 5-minute expiration
+const MAX_CHALLENGE_ATTEMPTS = 3       // Maximum 3 attempts before challenge is burned
 const IP_RATE_LIMIT = 10               // Max 10 challenges per 10 mins per IP
 const IP_WINDOW_MS = 10 * 60 * 1000
 const PHONE_RATE_LIMIT = 5             // Max 5 challenges per 1 hr per phone
@@ -201,7 +202,7 @@ export class PhoneVerificationService {
       }
     }
 
-    // 5. Expiration Check
+    // 5. Expiration & Attempt Limit Check
     if (new Date() > challenge.expiresAt) {
       await this.recordWebhookFailure(whatsappMessageId, senderNumber, rawPayload)
       return {
@@ -212,9 +213,23 @@ export class PhoneVerificationService {
       }
     }
 
-    // 6. Sender Phone Number Verification (Normalized E.164 equality)
+    if (challenge.attempts >= MAX_CHALLENGE_ATTEMPTS) {
+      await VerificationRepository.cancelChallenge(challenge.id)
+      await this.recordWebhookFailure(whatsappMessageId, senderNumber, rawPayload)
+      return {
+        success: false,
+        status: 'REJECTED',
+        reason: 'Too many failed verification attempts. Challenge has been revoked for security.',
+        challengeId: challenge.id,
+      }
+    }
+
+    // 6. Strict Sender Phone Number Verification (Normalized E.164 equality)
     if (!arePhonesEqual(senderNumber, challenge.phoneNumber)) {
-      await VerificationRepository.recordAttempt(challenge.id)
+      const attempts = await VerificationRepository.recordAttempt(challenge.id)
+      if (attempts >= MAX_CHALLENGE_ATTEMPTS) {
+        await VerificationRepository.cancelChallenge(challenge.id)
+      }
       await this.recordWebhookFailure(whatsappMessageId, senderNumber, rawPayload)
       return {
         success: false,
@@ -227,7 +242,10 @@ export class PhoneVerificationService {
     // 7. Cryptographic Token Verification (HMAC-SHA256 Constant-Time Equality)
     const isTokenValid = verifyToken(candidateToken, challenge.tokenHash)
     if (!isTokenValid) {
-      await VerificationRepository.recordAttempt(challenge.id)
+      const attempts = await VerificationRepository.recordAttempt(challenge.id)
+      if (attempts >= MAX_CHALLENGE_ATTEMPTS) {
+        await VerificationRepository.cancelChallenge(challenge.id)
+      }
       await this.recordWebhookFailure(whatsappMessageId, senderNumber, rawPayload)
       return {
         success: false,
