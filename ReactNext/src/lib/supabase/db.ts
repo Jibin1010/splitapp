@@ -315,3 +315,125 @@ export async function revokeCloudSession(rawToken: string) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 5. Phone & Telegram / WhatsApp Verification Comparison Engine (5NF Audit)
+// -----------------------------------------------------------------------------
+export async function createPhoneVerificationChallenge(params: {
+  challengeId: string
+  tokenHash: string
+  claimedPhone: string
+  claimedE164: string
+  channel: 'whatsapp' | 'telegram' | 'sms'
+  expiresAt: Date
+  clientIp?: string
+  userAgent?: string
+  identityId?: string
+}) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `INSERT INTO public.phone_verification_challenges (
+        challenge_id, token_hash, claimed_phone_number, claimed_phone_e164,
+        channel, expires_at, ip_address, user_agent, identity_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;`,
+      [
+        params.challengeId,
+        params.tokenHash,
+        params.claimedPhone,
+        params.claimedE164,
+        params.channel,
+        params.expiresAt,
+        params.clientIp || null,
+        params.userAgent || null,
+        params.identityId || null,
+      ]
+    )
+    return res.rows[0]
+  } finally {
+    client.release()
+  }
+}
+
+export async function processPhoneVerificationComparison(params: {
+  challengeId: string
+  actualSenderPhone: string
+  actualSenderE164: string
+  channel: 'whatsapp' | 'telegram' | 'sms'
+  telegramUserId?: number
+  telegramUsername?: string
+}) {
+  const client = await pool.connect()
+  try {
+    const checkRes = await client.query(
+      `SELECT * FROM public.phone_verification_challenges WHERE challenge_id = $1;`,
+      [params.challengeId]
+    )
+
+    if (checkRes.rows.length === 0) {
+      return { success: false, reason: 'CHALLENGE_NOT_FOUND' }
+    }
+
+    const challenge = checkRes.rows[0]
+
+    if (challenge.verification_status !== 'PENDING') {
+      return { success: false, reason: `ALREADY_${challenge.verification_status}` }
+    }
+
+    if (new Date() > new Date(challenge.expires_at)) {
+      await client.query(
+        `UPDATE public.phone_verification_challenges SET verification_status = 'EXPIRED' WHERE id = $1;`,
+        [challenge.id]
+      )
+      return { success: false, reason: 'CHALLENGE_EXPIRED' }
+    }
+
+    const matches = challenge.claimed_phone_e164 === params.actualSenderE164
+    const newAttempts = (challenge.attempts_count || 0) + 1
+    const isBurned = !matches && newAttempts >= 3
+
+    let newStatus: string
+    if (matches) {
+      newStatus = 'VERIFIED'
+    } else if (isBurned) {
+      newStatus = 'MAX_ATTEMPTS_EXCEEDED'
+    } else {
+      newStatus = 'MISMATCH_REJECTED'
+    }
+
+    await client.query(
+      `UPDATE public.phone_verification_challenges 
+       SET actual_sender_number = $1,
+           actual_sender_e164 = $2,
+           numbers_match = $3,
+           attempts_count = $4,
+           telegram_user_id = COALESCE($5, telegram_user_id),
+           telegram_username = COALESCE($6, telegram_username),
+           verification_status = $7,
+           verified_at = CASE WHEN $3 = true THEN clock_timestamp() ELSE verified_at END
+       WHERE id = $8;`,
+      [
+        params.actualSenderPhone,
+        params.actualSenderE164,
+        matches,
+        newAttempts,
+        params.telegramUserId || null,
+        params.telegramUsername || null,
+        newStatus,
+        challenge.id,
+      ]
+    )
+
+    return {
+      success: matches,
+      matches,
+      status: newStatus,
+      attempts: newAttempts,
+      claimedE164: challenge.claimed_phone_e164,
+      actualE164: params.actualSenderE164,
+    }
+  } finally {
+    client.release()
+  }
+}
+
