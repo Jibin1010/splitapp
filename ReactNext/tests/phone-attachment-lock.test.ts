@@ -131,3 +131,4 @@ describe('Phone Number Exclusive Binding & Settings Removal Test Suite', () => {
     expect(checkPhoneAFreed.allowed).toBe(true)
   })
 })
+

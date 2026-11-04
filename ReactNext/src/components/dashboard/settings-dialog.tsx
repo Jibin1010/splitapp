@@ -122,7 +122,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         setAttachedPhone(null)
         setNotification({
           type: 'success',
-          text: `Phone number ${res.unlinkedPhone || ''} was removed from your account. You can now connect a new number.`,
+          text: `Phone number ${res.unlinkedPhone || ''} was removed from your account. Status: Not Linked.`,
         })
         fetchProfile()
       } else {
@@ -151,7 +151,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               Settings
             </DialogTitle>
             <DialogDescription>
-              Manage your connected account, attached phone number, and workspace preferences.
+              Manage your connected account, phone number binding, and preferences.
             </DialogDescription>
           </DialogHeader>
 
@@ -173,172 +173,189 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </div>
           )}
 
-          <div className="space-y-5">
-            {/* 1. ACCOUNT & CONNECTED PHONE NUMBER */}
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3.5 space-y-3">
+          <div className="space-y-4">
+            {/* 1. PHONE NUMBER BINDING CARD (LINKED vs NOT LINKED) */}
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                  <User className="size-4 text-primary" />
-                  Account & Phone Binding
+                <div className="flex items-center gap-2">
+                  <div className={`flex size-8 items-center justify-center rounded-xl border ${
+                    attachedPhone ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100 border-slate-200 text-slate-500'
+                  }`}>
+                    <Smartphone className="size-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Phone Number
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {attachedPhone ? 'Hardware SIM binding' : 'Telegram / WhatsApp'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status Pill Badge: LINKED vs NOT LINKED */}
+                {attachedPhone ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-bold text-emerald-700 shadow-2xs">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Linked
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-700 shadow-2xs">
+                    <span className="size-2 rounded-full bg-amber-500" />
+                    Not Linked
+                  </span>
+                )}
+              </div>
+
+              {/* State A: LINKED */}
+              {attachedPhone ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                        Linked Phone Number
+                      </span>
+                      <span className="font-mono text-base font-black text-slate-950 block tracking-tight">
+                        {attachedPhone}
+                      </span>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmUnlinkOpen(true)}
+                      disabled={unlinking}
+                      className="h-8 px-3 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 cursor-pointer transition-all"
+                    >
+                      {unlinking ? (
+                        <RefreshCw className="size-3 animate-spin" />
+                      ) : (
+                        <Unlink className="size-3.5" />
+                      )}
+                      <span>Remove</span>
+                    </Button>
+                  </div>
+
+                  <p className="text-[10px] text-emerald-950/80 leading-relaxed border-t border-emerald-100 pt-2">
+                    🔒 <strong>Status: Linked.</strong> This number is exclusively bonded to your account.
+                    To connect a different number or log in elsewhere, tap <strong>Remove</strong>.
+                  </p>
+                </div>
+              ) : (
+                /* State B: NOT LINKED */
+                <div className="rounded-xl border border-dashed border-amber-200/90 bg-amber-50/40 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                        Phone Status
+                      </span>
+                      <span className="text-xs font-bold text-amber-900 block flex items-center gap-1.5 pt-0.5">
+                        <span className="size-2 rounded-full bg-amber-500" />
+                        Not Linked
+                      </span>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setConnectPhoneOpen(true)}
+                      className="h-8 px-3 text-xs font-bold bg-[#229ED9] hover:bg-[#1e8ec3] text-white cursor-pointer shadow-xs gap-1.5"
+                    >
+                      <Phone className="size-3" />
+                      <span>Link Phone</span>
+                    </Button>
+                  </div>
+
+                  <p className="text-[10px] text-amber-900/80 leading-relaxed border-t border-amber-200/60 pt-2">
+                    ⚠️ <strong>Status: Not Linked.</strong> Link your Telegram (1-Tap) or WhatsApp phone number
+                    to enable verified settlements and instant 1-tap sign in.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 2. ACCOUNT IDENTITY INFO */}
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                  <User className="size-3.5 text-slate-500" />
+                  <span>Account Identity</span>
                 </span>
                 {user ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-bold text-slate-700">
                     {authProvider === 'google' ? 'Google Account' : authProvider === 'email' ? 'Email Account' : 'Phone Account'}
                   </span>
                 ) : (
-                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                  <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                     Guest Mode
                   </span>
                 )}
               </div>
 
               {user ? (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <div>
-                      <p className="font-bold text-slate-900">{user.name || 'Account User'}</p>
-                      <p className="text-[11px] text-muted-foreground">{accountEmail || user.email}</p>
-                    </div>
-                  </div>
-
-                  {/* Connected Phone Card */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2.5 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        Connected Phone Number
-                      </span>
-                      {attachedPhone ? (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="size-3 text-emerald-600" />
-                          Attached & Verified
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                          No Phone Attached
-                        </span>
-                      )}
-                    </div>
-
-                    {attachedPhone ? (
-                      <div className="flex items-center justify-between pt-0.5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex size-7 items-center justify-center rounded-lg bg-sky-50 text-[#229ED9] border border-sky-100">
-                            <Smartphone className="size-4" />
-                          </div>
-                          <div>
-                            <span className="font-mono text-xs font-black text-slate-900 block">
-                              {attachedPhone}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              Bound exclusively to this account
-                            </span>
-                          </div>
-                        </div>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setConfirmUnlinkOpen(true)}
-                          disabled={unlinking}
-                          className="h-8 px-2.5 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 cursor-pointer transition-all"
-                        >
-                          {unlinking ? (
-                            <RefreshCw className="size-3 animate-spin" />
-                          ) : (
-                            <Unlink className="size-3.5" />
-                          )}
-                          <span>Remove</span>
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="pt-0.5 flex items-center justify-between">
-                        <span className="text-xs text-slate-500">
-                          Attach a Telegram or WhatsApp number for 1-tap login.
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setConnectPhoneOpen(true)}
-                          className="h-8 px-3 text-xs font-bold text-[#229ED9] border-sky-200 hover:bg-sky-50 cursor-pointer"
-                        >
-                          <Phone className="size-3" />
-                          <span>Attach Phone</span>
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="rounded-lg bg-slate-50 p-2 text-[10px] text-slate-500 leading-relaxed border border-slate-100">
-                      {attachedPhone ? (
-                        <span>
-                          🔒 <strong>Anti-abuse protection active:</strong> No other account can use or login with this
-                          number. If you want to connect a different number or move it, remove it here first.
-                        </span>
-                      ) : (
-                        <span>
-                          💡 Once attached, your phone is locked exclusively to your Google/Email account.
-                        </span>
-                      )}
-                    </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <p className="font-bold text-slate-900">{user.name || 'Account User'}</p>
+                    <p className="text-[11px] text-muted-foreground">{accountEmail || user.email}</p>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground space-y-2">
-                  <p>You are using SplitLedger as a guest. Sign in to attach your phone number, sync bills, and protect your identity.</p>
-                  <Button variant="outline" size="sm" asChild className="h-8 text-xs font-bold">
-                    <Link href="/login">Sign In / Create Account</Link>
+                <div className="pt-1 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Local draft session only.</span>
+                  <Button variant="outline" size="sm" asChild className="h-7 text-xs font-bold cursor-pointer">
+                    <Link href="/login">Sign In</Link>
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* 2. CURRENCY PREFERENCE */}
+            {/* 3. CURRENCY PREFERENCE */}
             <div>
-              <label htmlFor="currency-select" className="mb-1.5 block text-sm font-medium">
+              <label htmlFor="currency-select" className="mb-1.5 block text-xs font-bold text-slate-700">
                 Currency
               </label>
               <Select value={state.bill.currency} onValueChange={(value) => setCurrency(value as CurrencyCode)}>
-                <SelectTrigger id="currency-select" aria-label="Currency">
+                <SelectTrigger id="currency-select" aria-label="Currency" className="h-9 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(CURRENCY_META) as CurrencyCode[]).map((code) => (
-                    <SelectItem key={code} value={code}>
+                    <SelectItem key={code} value={code} className="text-xs">
                       {CURRENCY_META[code].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Applies to the current bill and becomes the default for new bills.
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Applies to the current bill and becomes default for new bills.
               </p>
             </div>
 
-            {/* 3. PRIVACY & SECURITY */}
-            <div className="rounded-lg border border-border p-3">
-              <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
-                <ShieldCheck className="size-4 text-emerald-600" aria-hidden />
+            {/* 4. PRIVACY & DATA SECURITY */}
+            <div className="rounded-xl border border-border p-3">
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <ShieldCheck className="size-3.5 text-emerald-600" aria-hidden />
                 Privacy & Data Security
               </p>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {APP_NAME} protects your identity with 5NF database normalization. Connected phone numbers are validated
-                against physical SIM ownership with zero SMS data leaks.
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {APP_NAME} protects your account with 5NF database normalization. Connected phone numbers are verified
+                via hardware SIM checks with zero SMS data exposure.
               </p>
             </div>
 
-            {/* 4. LOCAL DATA RESET */}
-            <div className="rounded-lg border border-border p-3">
-              <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
-                <HardDriveDownload className="size-4 text-primary" aria-hidden />
+            {/* 5. LOCAL DATA RESET */}
+            <div className="rounded-xl border border-border p-3">
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <HardDriveDownload className="size-3.5 text-primary" aria-hidden />
                 Local data
               </p>
-              <p className="mb-2 text-xs leading-relaxed text-muted-foreground">
+              <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
                 “Clear all data” wipes the autosaved draft, saved history and settings, then restores the example
-                bill. There is no way to undo this.
+                bill.
               </p>
-              <Button variant="destructive" size="sm" onClick={() => setConfirmClearOpen(true)} className="gap-1.5 cursor-pointer">
-                <Trash2 aria-hidden />
+              <Button variant="destructive" size="sm" onClick={() => setConfirmClearOpen(true)} className="h-8 gap-1.5 text-xs cursor-pointer">
+                <Trash2 aria-hidden className="size-3.5" />
                 Clear all data
               </Button>
             </div>
@@ -354,7 +371,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <DialogDescription>
               Are you sure you want to remove <strong className="font-mono text-slate-900">{attachedPhone}</strong> from your account?
               <br /><br />
-              Once removed, this phone number can be connected to another account or used for new verification requests.
+              Once removed, status will change to <strong>Not Linked</strong>, and this number can be linked to another account or used for new verification.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -376,16 +393,16 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: ATTACH PHONE NUMBER */}
+      {/* MODAL: LINK PHONE NUMBER */}
       <Dialog open={connectPhoneOpen} onOpenChange={setConnectPhoneOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Smartphone className="size-5 text-[#229ED9]" />
-              Attach Phone Number
+              Link Phone Number
             </DialogTitle>
             <DialogDescription>
-              Verify your phone number with Telegram (1-Tap) or WhatsApp to link it exclusively to your account.
+              Verify your mobile number with Telegram (1-Tap) or WhatsApp to link it exclusively to your account.
             </DialogDescription>
           </DialogHeader>
 
@@ -397,7 +414,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 setConnectPhoneOpen(false)
                 setNotification({
                   type: 'success',
-                  text: `Phone number ${verifiedPhone} attached successfully to your account!`,
+                  text: `Phone number ${verifiedPhone} is now Linked to your account!`,
                 })
                 fetchProfile()
               }}
