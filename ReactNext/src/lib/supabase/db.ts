@@ -70,12 +70,136 @@ export async function authenticateGoogleUser(params: {
 }
 
 // -----------------------------------------------------------------------------
-// 1b. WhatsApp Phone Identity Linking (5NF)
+// 1b. Phone Identity Attachment & Anti-Collision Engine (5NF)
 // -----------------------------------------------------------------------------
+export async function checkPhoneAttachmentStatus(params: {
+  phone: string
+  currentIdentityId?: string
+}): Promise<{
+  allowed: boolean
+  error?: string
+  isAttached: boolean
+  isBoundToPrimaryAccount?: boolean
+  primaryEmail?: string
+  primaryProvider?: 'google' | 'email'
+  attachedIdentityId?: string
+  existingUserPhone?: string
+}> {
+  const cleanPhone = params.phone.replace(/[^0-9+]/g, '')
+  const client = await pool.connect()
+  try {
+    // 1. If user is logged in, check if their current account already has a phone attached
+    if (params.currentIdentityId) {
+      const userPhoneRes = await client.query(
+        `SELECT e164_phone FROM public.phone_whatsapp_identities WHERE identity_id = $1 LIMIT 1;`,
+        [params.currentIdentityId]
+      )
+      if (userPhoneRes.rows.length > 0) {
+        const existing = userPhoneRes.rows[0].e164_phone
+        if (existing && existing !== cleanPhone) {
+          return {
+            allowed: false,
+            isAttached: true,
+            existingUserPhone: existing,
+            error: `Your account already has phone number ${existing} attached. You must remove it in Settings before connecting a different number.`,
+          }
+        }
+      }
+    }
+
+    // 2. Check if the candidate phone number is already attached to any identity
+    const phoneRes = await client.query(
+      `SELECT 
+         p.identity_id,
+         p.e164_phone,
+         lc.email as local_email,
+         lc.username as local_username,
+         g.email as google_email
+       FROM public.phone_whatsapp_identities p
+       JOIN public.app_identities i ON i.id = p.identity_id
+       LEFT JOIN public.local_credentials lc ON lc.identity_id = i.id
+       LEFT JOIN public.google_oauth_accounts g ON g.identity_id = i.id
+       WHERE p.e164_phone = $1
+       LIMIT 1;`,
+      [cleanPhone]
+    )
+
+    if (phoneRes.rows.length > 0) {
+      const row = phoneRes.rows[0]
+      const ownerIdentityId = row.identity_id
+
+      // Case A: User is logged in, but this phone is already attached to a different account
+      if (params.currentIdentityId && ownerIdentityId !== params.currentIdentityId) {
+        return {
+          allowed: false,
+          isAttached: true,
+          attachedIdentityId: ownerIdentityId,
+          error: `This phone number (${cleanPhone}) is already attached to another account. You cannot link it until it is removed from that account's Settings.`,
+        }
+      }
+
+      // Case B: User is NOT logged in and trying to log in with phone, but this phone is bound to a primary Google/Email account
+      if (!params.currentIdentityId) {
+        const primaryEmail = row.google_email || row.local_email
+        if (primaryEmail) {
+          const provider = row.google_email ? 'Google' : 'Email'
+          return {
+            allowed: false,
+            isAttached: true,
+            isBoundToPrimaryAccount: true,
+            primaryEmail,
+            primaryProvider: provider.toLowerCase() as 'google' | 'email',
+            error: `This phone number (${cleanPhone}) is attached to your ${provider} account (${primaryEmail}). Please sign in with ${provider}. To use phone login, remove this number from Settings first.`,
+          }
+        }
+      }
+    }
+
+    return { allowed: true, isAttached: false }
+  } finally {
+    client.release()
+  }
+}
+
+export async function unlinkPhoneIdentity(identityId: string) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `DELETE FROM public.phone_whatsapp_identities 
+       WHERE identity_id = $1 
+       RETURNING e164_phone;`,
+      [identityId]
+    )
+
+    await client.query(
+      `DELETE FROM public.identity_auth_methods 
+       WHERE identity_id = $1 AND provider_code = 'whatsapp_phone';`,
+      [identityId]
+    )
+
+    const unlinkedPhone = res.rows[0]?.e164_phone || null
+    return {
+      success: true,
+      unlinkedPhone,
+    }
+  } finally {
+    client.release()
+  }
+}
+
 export async function linkPhoneIdentity(params: {
   phone: string
   targetIdentityId?: string
 }) {
+  const check = await checkPhoneAttachmentStatus({
+    phone: params.phone,
+    currentIdentityId: params.targetIdentityId,
+  })
+
+  if (!check.allowed) {
+    throw new Error(check.error || 'Phone attachment check failed')
+  }
+
   const client = await pool.connect()
   try {
     const res = await client.query(

@@ -3,6 +3,7 @@ export interface AuthUser {
   name: string
   email: string
   photo?: string | null
+  phone?: string | null
   createdAt: string
 }
 
@@ -262,5 +263,32 @@ export async function getUnifiedProfile(): Promise<{
     return data
   } catch (err: any) {
     return { authenticated: false, error: err.message }
+  }
+}
+
+/**
+ * Removes the attached phone number from the active user's account.
+ */
+export async function unlinkPhoneFromAccount(): Promise<{
+  success: boolean
+  error?: string
+  unlinkedPhone?: string
+}> {
+  try {
+    const res = await fetch('/api/cloud-auth/link-phone', {
+      method: 'DELETE',
+    })
+    const data = await res.json()
+    if (res.ok && data.success) {
+      const current = getStoredUser()
+      if (current) {
+        current.phone = null
+        saveStoredUser(current)
+      }
+      return { success: true, unlinkedPhone: data.unlinkedPhone }
+    }
+    return { success: false, error: data.error || 'Failed to remove phone number' }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error' }
   }
 }

@@ -40,7 +40,9 @@ export async function GET(request: Request) {
         username: session.username,
         email: session.email,
         avatarUrl: session.avatarUrl,
+        phone: unified?.phone?.e164Phone || null,
       },
+      phone: unified?.phone?.e164Phone || null,
       unified,
     })
   } catch (error: any) {

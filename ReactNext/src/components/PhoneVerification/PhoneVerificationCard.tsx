@@ -2,7 +2,16 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, AlertTriangle, MessageCircle, Send, Sparkles, User } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  Lock,
+  MessageCircle,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  User,
+} from 'lucide-react'
 import { saveStoredUser } from '@/lib/auth'
 import { saveActivePersonId } from '@/lib/storage'
 import { PhoneInput } from './PhoneInput'
@@ -334,9 +343,27 @@ export function PhoneVerificationCard({
 
       {/* Error Alert */}
       {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200/80 p-3 text-xs font-medium text-red-700 animate-in fade-in">
-          <AlertCircle className="size-4 shrink-0 text-red-600" />
-          <span>{error}</span>
+        <div
+          className={`mb-4 rounded-xl p-3 text-xs font-medium animate-in fade-in ${
+            error.includes('Settings') || error.includes('attached')
+              ? 'bg-amber-50 border border-amber-300 text-amber-900 space-y-1'
+              : 'flex items-center gap-2 bg-red-50 border border-red-200/80 text-red-700'
+          }`}
+        >
+          {error.includes('Settings') || error.includes('attached') ? (
+            <>
+              <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                <ShieldAlert className="size-4 shrink-0 text-amber-600" />
+                <span>Account Protection: Phone Number Locked</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800/90">{error}</p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="size-4 shrink-0 text-red-600" />
+              <span>{error}</span>
+            </>
+          )}
         </div>
       )}
 

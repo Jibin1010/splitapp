@@ -256,3 +256,4 @@ describe('Telegram 1-Tap SIM Verification Test Suite', () => {
     expect(verifiedStatus.status).toBe('VERIFIED')
   })
 })
+

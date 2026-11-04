@@ -63,15 +63,24 @@ const globalStorage = globalThis as unknown as {
   __pv_users?: Map<string, UserEntity>
   __pv_challenges?: Map<string, VerificationChallengeEntity>
   __pv_webhooks?: Map<string, WebhookEventEntity>
+  __pv_attached_phones?: Map<string, string>
+  __pv_identity_phones?: Map<string, string>
+  __pv_primary_accounts?: Map<string, { email: string; provider: 'google' | 'email' }>
 }
 
 if (!globalStorage.__pv_users) globalStorage.__pv_users = new Map()
 if (!globalStorage.__pv_challenges) globalStorage.__pv_challenges = new Map()
 if (!globalStorage.__pv_webhooks) globalStorage.__pv_webhooks = new Map()
+if (!globalStorage.__pv_attached_phones) globalStorage.__pv_attached_phones = new Map()
+if (!globalStorage.__pv_identity_phones) globalStorage.__pv_identity_phones = new Map()
+if (!globalStorage.__pv_primary_accounts) globalStorage.__pv_primary_accounts = new Map()
 
 const users = globalStorage.__pv_users
 const challenges = globalStorage.__pv_challenges
 const webhooks = globalStorage.__pv_webhooks
+const attachedPhones = globalStorage.__pv_attached_phones
+const identityPhones = globalStorage.__pv_identity_phones
+const primaryAccounts = globalStorage.__pv_primary_accounts
 
 export const VerificationRepository = {
   // --- Challenges ---
@@ -386,9 +395,91 @@ export const VerificationRepository = {
     return { ...newUser }
   },
 
+  // --- Exclusive Phone Binding & Collision Engine ---
+  async checkPhoneAttachment(phone: string, currentIdentityId?: string): Promise<{
+    allowed: boolean
+    error?: string
+    isAttached: boolean
+    isBoundToPrimaryAccount?: boolean
+    primaryEmail?: string
+    primaryProvider?: 'google' | 'email'
+  }> {
+    const cleanPhone = phone.replace(/[^0-9+]/g, '')
+
+    // Case 1: If logged in, check if current user already has a different phone attached
+    if (currentIdentityId) {
+      const existing = identityPhones.get(currentIdentityId)
+      if (existing && existing !== cleanPhone) {
+        return {
+          allowed: false,
+          isAttached: true,
+          error: `Your account already has phone number ${existing} attached. You must remove it in Settings before connecting a different number.`,
+        }
+      }
+    }
+
+    // Case 2: Check if phone is already attached to someone else
+    const ownerId = attachedPhones.get(cleanPhone)
+    if (ownerId) {
+      if (currentIdentityId && ownerId !== currentIdentityId) {
+        return {
+          allowed: false,
+          isAttached: true,
+          error: `This phone number (${cleanPhone}) is already attached to another account. You cannot link it until it is removed from that account's Settings.`,
+        }
+      }
+
+      if (!currentIdentityId) {
+        const primary = primaryAccounts.get(ownerId)
+        if (primary) {
+          const providerName = primary.provider === 'google' ? 'Google' : 'Email'
+          return {
+            allowed: false,
+            isAttached: true,
+            isBoundToPrimaryAccount: true,
+            primaryEmail: primary.email,
+            primaryProvider: primary.provider,
+            error: `This phone number (${cleanPhone}) is attached to your ${providerName} account (${primary.email}). Please sign in with ${providerName}. To use phone login, remove this number from Settings first.`,
+          }
+        }
+      }
+    }
+
+    return { allowed: true, isAttached: false }
+  },
+
+  async attachPhone(
+    phone: string,
+    identityId: string,
+    primaryAccount?: { email: string; provider: 'google' | 'email' }
+  ): Promise<void> {
+    const cleanPhone = phone.replace(/[^0-9+]/g, '')
+    attachedPhones.set(cleanPhone, identityId)
+    identityPhones.set(identityId, cleanPhone)
+    if (primaryAccount) {
+      primaryAccounts.set(identityId, primaryAccount)
+    }
+  },
+
+  async unlinkPhone(identityId: string): Promise<string | null> {
+    const phone = identityPhones.get(identityId)
+    if (phone) {
+      attachedPhones.delete(phone)
+      identityPhones.delete(identityId)
+    }
+    return phone || null
+  },
+
+  async getAttachedPhone(identityId: string): Promise<string | null> {
+    return identityPhones.get(identityId) || null
+  },
+
   async clearAll(): Promise<void> {
     users.clear()
     challenges.clear()
     webhooks.clear()
+    attachedPhones.clear()
+    identityPhones.clear()
+    primaryAccounts.clear()
   },
 }

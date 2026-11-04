@@ -12,7 +12,7 @@ import {
   VerificationRepository,
   WebhookEventEntity,
 } from './repository'
-import { linkPhoneIdentity } from '@/lib/supabase/db'
+import { linkPhoneIdentity, checkPhoneAttachmentStatus } from '@/lib/supabase/db'
 
 export type VerificationChannel = 'whatsapp' | 'telegram' | 'sms'
 
@@ -132,6 +132,28 @@ export class PhoneVerificationService {
       return {
         success: false,
         error: 'Invalid phone number. Please enter a valid international mobile number.',
+      }
+    }
+
+    // 1b. Anti-Collision & Exclusive Phone Binding Check
+    try {
+      const dbCheck = await checkPhoneAttachmentStatus({
+        phone: normalized.e164,
+        currentIdentityId: userId,
+      })
+      if (!dbCheck.allowed) {
+        return {
+          success: false,
+          error: dbCheck.error,
+        }
+      }
+    } catch {
+      const memCheck = await VerificationRepository.checkPhoneAttachment(normalized.e164, userId)
+      if (!memCheck.allowed) {
+        return {
+          success: false,
+          error: memCheck.error,
+        }
       }
     }
 

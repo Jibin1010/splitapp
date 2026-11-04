@@ -70,7 +70,7 @@ export function LandingVideoCard() {
             console.warn('Playback blocked or failed, retrying muted:', err)
             video.muted = true
             setIsMuted(true)
-            video.play().then(() => setIsPlaying(true)).catch(() => {})
+            video.play().then(() => setIsPlaying(true)).catch(() => { })
           })
       }
     } else {
@@ -98,9 +98,9 @@ export function LandingVideoCard() {
     const video = videoRef.current
     if (!video) return
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {})
+      document.exitFullscreen().catch(() => { })
     } else {
-      video.requestFullscreen().catch(() => {})
+      video.requestFullscreen().catch(() => { })
     }
   }
 
