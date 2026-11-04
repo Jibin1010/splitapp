@@ -19,8 +19,12 @@ export async function GET(
     return NextResponse.json({
       success: true,
       challengeId: id,
-      status: result.status.toLowerCase(), // 'pending' | 'verified' | 'expired' | 'cancelled'
+      status: result.status.toLowerCase(), // 'pending' | 'verified' | 'mismatch_rejected' | 'max_attempts_exceeded' | 'expired' | 'cancelled'
+      channel: result.channel,
       phoneNumber: result.phoneNumber,
+      actualSenderPhone: result.actualSenderPhone,
+      numbersMatch: result.numbersMatch,
+      attempts: result.attempts,
       verifiedAt: result.verifiedAt,
       expiresAt: result.expiresAt,
     })
@@ -31,4 +35,3 @@ export async function GET(
     )
   }
 }
-

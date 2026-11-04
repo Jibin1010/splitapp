@@ -41,6 +41,7 @@ export async function POST(request: Request) {
 
     const result = await phoneVerification.createChallenge({
       rawPhone,
+      channel: body?.channel === 'whatsapp' ? 'whatsapp' : 'telegram',
       clientIp,
       defaultCountryCode: body?.countryCode || '91',
       userId,

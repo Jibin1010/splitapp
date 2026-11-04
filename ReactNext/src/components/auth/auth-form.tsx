@@ -12,6 +12,7 @@ import {
   Lock,
   Mail,
   MessageCircle,
+  Smartphone,
   Sparkles,
   User,
 } from 'lucide-react'
@@ -401,12 +402,12 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
           }}
           className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             mode === 'whatsapp'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-emerald-700 hover:text-emerald-900'
+              ? 'bg-[#229ED9] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <MessageCircle className="size-3.5" />
-          <span>WhatsApp</span>
+          <Smartphone className="size-3.5" />
+          <span>Telegram / WA</span>
         </button>
       </div>
 
@@ -669,10 +670,10 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
                 setMode('whatsapp')
                 setError(null)
               }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/40 py-2.5 px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100/60 transition-colors shadow-2xs cursor-pointer"
+              className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50/40 py-2.5 px-3 text-xs font-bold text-sky-800 hover:bg-sky-100/60 transition-colors shadow-2xs cursor-pointer"
             >
-              <MessageCircle className="size-4 text-emerald-600" />
-              <span>WhatsApp</span>
+              <Smartphone className="size-4 text-[#229ED9]" />
+              <span>Telegram / Phone</span>
             </button>
           </div>
         </>

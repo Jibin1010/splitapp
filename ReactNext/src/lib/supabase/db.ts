@@ -6,12 +6,13 @@ const SUPABASE_DB_URL =
   process.env.SUPABASE_POSTGRES_URL ||
   'postgresql://postgres@localhost:5432/postgres'
 
-// Initialize PostgreSQL connection pool with SSL for Supabase
+const isLocalhost =
+  SUPABASE_DB_URL.includes('localhost') || SUPABASE_DB_URL.includes('127.0.0.1')
+
+// Initialize PostgreSQL connection pool with SSL for Supabase (disabled on localhost)
 export const pool = new Pool({
   connectionString: SUPABASE_DB_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: isLocalhost ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -318,6 +319,8 @@ export async function revokeCloudSession(rawToken: string) {
 // -----------------------------------------------------------------------------
 // 5. Phone & Telegram / WhatsApp Verification Comparison Engine (5NF Audit)
 // -----------------------------------------------------------------------------
+// 6. Zero-Trust Inbound Phone Verification & Comparison Engine
+// -----------------------------------------------------------------------------
 export async function createPhoneVerificationChallenge(params: {
   challengeId: string
   tokenHash: string
@@ -355,6 +358,74 @@ export async function createPhoneVerificationChallenge(params: {
   }
 }
 
+export async function getPhoneVerificationChallenge(challengeId: string) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `SELECT * FROM public.phone_verification_challenges WHERE challenge_id = $1 LIMIT 1;`,
+      [challengeId]
+    )
+    return res.rows[0] || null
+  } finally {
+    client.release()
+  }
+}
+
+export async function getLatestPendingChallengeByTelegramUser(telegramUserId: number) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `SELECT * FROM public.phone_verification_challenges 
+       WHERE telegram_user_id = $1 
+         AND verification_status IN ('PENDING', 'MISMATCH_REJECTED')
+         AND attempts_count < 3
+         AND expires_at > NOW() 
+       ORDER BY created_at DESC 
+       LIMIT 1;`,
+      [telegramUserId]
+    )
+    return res.rows[0] || null
+  } finally {
+    client.release()
+  }
+}
+
+export async function associateTelegramUserWithChallenge(params: {
+  challengeId: string
+  telegramUserId: number
+  telegramUsername?: string
+}) {
+  const client = await pool.connect()
+  try {
+    const res = await client.query(
+      `UPDATE public.phone_verification_challenges
+       SET telegram_user_id = $1,
+           telegram_username = COALESCE($2, telegram_username)
+       WHERE challenge_id = $3
+       RETURNING *;`,
+      [params.telegramUserId, params.telegramUsername || null, params.challengeId]
+    )
+    return res.rows[0] || null
+  } finally {
+    client.release()
+  }
+}
+
+export async function cancelPhoneVerificationChallenge(challengeId: string) {
+  const client = await pool.connect()
+  try {
+    await client.query(
+      `UPDATE public.phone_verification_challenges
+       SET verification_status = 'CANCELLED'
+       WHERE challenge_id = $1 AND verification_status = 'PENDING';`,
+      [challengeId]
+    )
+    return true
+  } finally {
+    client.release()
+  }
+}
+
 export async function processPhoneVerificationComparison(params: {
   challengeId: string
   actualSenderPhone: string
@@ -376,7 +447,7 @@ export async function processPhoneVerificationComparison(params: {
 
     const challenge = checkRes.rows[0]
 
-    if (challenge.verification_status !== 'PENDING') {
+    if (challenge.verification_status !== 'PENDING' && challenge.verification_status !== 'MISMATCH_REJECTED') {
       return { success: false, reason: `ALREADY_${challenge.verification_status}` }
     }
 
@@ -401,6 +472,22 @@ export async function processPhoneVerificationComparison(params: {
       newStatus = 'MISMATCH_REJECTED'
     }
 
+    // Auto-link or create 5NF phone identity when numbers match
+    let finalIdentityId = challenge.identity_id || null
+    if (matches) {
+      try {
+        const linkRes = await client.query(
+          `SELECT * FROM public.cloud_link_phone_identity($1, $2);`,
+          [params.actualSenderE164.replace(/[^0-9+]/g, ''), challenge.identity_id || null]
+        )
+        if (linkRes.rows[0]?.identity_id) {
+          finalIdentityId = linkRes.rows[0].identity_id
+        }
+      } catch (linkErr) {
+        console.error('5NF link phone identity error (non-fatal):', linkErr)
+      }
+    }
+
     await client.query(
       `UPDATE public.phone_verification_challenges 
        SET actual_sender_number = $1,
@@ -410,8 +497,9 @@ export async function processPhoneVerificationComparison(params: {
            telegram_user_id = COALESCE($5, telegram_user_id),
            telegram_username = COALESCE($6, telegram_username),
            verification_status = $7,
-           verified_at = CASE WHEN $3 = true THEN clock_timestamp() ELSE verified_at END
-       WHERE id = $8;`,
+           verified_at = CASE WHEN $3 = true THEN clock_timestamp() ELSE verified_at END,
+           identity_id = COALESCE($8, identity_id)
+       WHERE id = $9;`,
       [
         params.actualSenderPhone,
         params.actualSenderE164,
@@ -420,6 +508,7 @@ export async function processPhoneVerificationComparison(params: {
         params.telegramUserId || null,
         params.telegramUsername || null,
         newStatus,
+        finalIdentityId,
         challenge.id,
       ]
     )
@@ -431,6 +520,7 @@ export async function processPhoneVerificationComparison(params: {
       attempts: newAttempts,
       claimedE164: challenge.claimed_phone_e164,
       actualE164: params.actualSenderE164,
+      identityId: finalIdentityId,
     }
   } finally {
     client.release()
