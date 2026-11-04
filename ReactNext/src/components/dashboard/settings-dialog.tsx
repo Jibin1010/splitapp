@@ -339,20 +339,19 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 Privacy & Data Security
               </p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {APP_NAME} protects your account with 5NF database normalization. Connected phone numbers are verified
-                via hardware SIM checks with zero SMS data exposure.
+                {APP_NAME} enforces server-side 5NF data isolation. Your bills and expense groups belong strictly
+                to your authenticated account and verified members added to your groups.
               </p>
             </div>
 
-            {/* 5. LOCAL DATA RESET */}
+            {/* 5. DATA RESET */}
             <div className="rounded-xl border border-border p-3">
               <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-800">
                 <HardDriveDownload className="size-3.5 text-primary" aria-hidden />
-                Local data
+                Data Reset
               </p>
               <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
-                “Clear all data” wipes the autosaved draft, saved history and settings, then restores the example
-                bill.
+                “Clear all data” wipes your active draft and resets your workspace to a clean bill with your profile.
               </p>
               <Button variant="destructive" size="sm" onClick={() => setConfirmClearOpen(true)} className="h-8 gap-1.5 text-xs cursor-pointer">
                 <Trash2 aria-hidden className="size-3.5" />

@@ -40,7 +40,21 @@ function safeSetJson(key: string, value: unknown): boolean {
 }
 
 export function loadDraft(): Bill | null {
-  return safeGetJson<Bill>(DRAFT_KEY)
+  const draft = safeGetJson<Bill>(DRAFT_KEY)
+  if (!draft) return null
+  // Automatically purge legacy mock data or 50 dummy people if stored in browser
+  if (
+    Array.isArray(draft.people) &&
+    (draft.people.length >= 9 ||
+      draft.people.some((p) =>
+        ['Maya Sharma', 'Arjun Patel', 'Neha Rao', 'Ravi Kumar', 'Priya Nair'].includes(p.name)
+      ) ||
+      (Array.isArray(draft.items) && draft.items.some((i) => i.name?.toLowerCase().includes('biriyani'))))
+  ) {
+    clearDraft()
+    return null
+  }
+  return draft
 }
 
 export function saveDraft(bill: Bill): boolean {

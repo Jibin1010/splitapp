@@ -21,7 +21,7 @@ import {
 } from '@/lib/storage'
 import { getStoredUser } from '@/lib/auth'
 import { calculateBillViaApi } from '@/lib/api-client'
-import { createEmptyBill, createSampleBill } from '@/lib/seed'
+import { createEmptyBill, createCleanBill, createSampleBill } from '@/lib/seed'
 import { isCurrencyCode } from '@/lib/validation'
 import type { StoreAction, StoreContextValue, StoreState } from './store/store-types'
 import { reducer } from './store/store-reducer'
@@ -59,56 +59,68 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
   const [draftSavedAt, setDraftSavedAt] = React.useState<string | null>(null)
   const hydratedRef = React.useRef(false)
 
-  // Hydrate from local storage (or first-visit sample data) once.
+  // Hydrate from backend server (or clean private bill) once.
   React.useEffect(() => {
     if (hydratedRef.current) return
     hydratedRef.current = true
-    let savedActivePersonId = loadActivePersonId()
-    const draft = loadDraft()
-    if (typeof window !== 'undefined') {
-      try {
-        const authUser = getStoredUser()
+
+    async function initializeStore() {
+      let savedActivePersonId = loadActivePersonId()
+      const authUser = getStoredUser()
+
+      // 1. If user is logged in, fetch their isolated bill directly from the backend server!
+      if (authUser) {
+        try {
+          const res = await fetch('/api/cloud-bill')
+          if (res.ok) {
+            const data = await res.json()
+            if (data.ok && data.bill && Array.isArray(data.bill.people) && data.bill.people.length > 0) {
+              const userPerson = data.bill.people.find(
+                (p: Person) =>
+                  p.name.toLowerCase() === authUser.name.toLowerCase() ||
+                  p.id === authUser.id ||
+                  p.id === savedActivePersonId
+              )
+              const activeId = userPerson ? userPerson.id : data.bill.people[0]?.id || null
+              dispatch({ type: 'HYDRATE', bill: data.bill, activePersonId: activeId })
+              return
+            }
+          }
+        } catch (err) {
+          console.warn('Could not fetch cloud bill, falling back to local storage:', err)
+        }
+      }
+
+      // 2. Local fallback (if offline or not logged in)
+      const draft = loadDraft()
+      if (draft && isBillLike(draft) && draft.people.length > 0) {
+        let matchedPersonId = savedActivePersonId
         if (authUser) {
-          const sample = createSampleBill()
-          const matched = (draft && isBillLike(draft) ? draft.people : sample.people).find(
-            (p) => p.name.toLowerCase().includes(authUser.name.toLowerCase()) ||
-                   authUser.name.toLowerCase().includes(p.name.toLowerCase()) ||
-                   p.id === authUser.id
+          const matched = draft.people.find(
+            (p) =>
+              p.name.toLowerCase().includes(authUser.name.toLowerCase()) ||
+              authUser.name.toLowerCase().includes(p.name.toLowerCase()) ||
+              p.id === authUser.id
           )
-          if (matched) {
-            savedActivePersonId = matched.id
-          }
+          if (matched) matchedPersonId = matched.id
         }
-        const params = new URLSearchParams(window.location.search)
-        const userQuery = params.get('user') || params.get('person')
-        if (userQuery) {
-          const sample = createSampleBill()
-          const matched = (draft && isBillLike(draft) ? draft.people : sample.people).find(
-            (p) => p.id === userQuery || p.name.toLowerCase() === userQuery.toLowerCase()
-          )
-          if (matched) {
-            savedActivePersonId = matched.id
-          }
-        }
-      } catch {}
-    }
-    if (draft && isBillLike(draft)) {
-      // If the draft is the old Chicken Biriyani bill or has 0 people, replace with 50 dummy people!
-      const shouldLoad50 =
-        draft.people.length === 0 ||
-        draft.items.some((i) => i.name.toLowerCase().includes('biriyani'))
-      if (shouldLoad50) {
-        dispatch({ type: 'LOAD_50_DUMMY_PEOPLE' })
+        dispatch({ type: 'HYDRATE', bill: draft, activePersonId: matchedPersonId })
       } else {
-        dispatch({ type: 'HYDRATE', bill: draft, activePersonId: savedActivePersonId })
-      }
-    } else {
-      const settings = loadSettings(DEFAULT_CURRENCY)
-      dispatch({ type: 'HYDRATE', bill: createSampleBill(), activePersonId: savedActivePersonId })
-      if (settings.currency !== DEFAULT_CURRENCY) {
-        dispatch({ type: 'SET_CURRENCY', currency: settings.currency })
+        const settings = loadSettings(DEFAULT_CURRENCY)
+        const cleanBill = createCleanBill(
+          settings.currency || DEFAULT_CURRENCY,
+          authUser?.name || 'You',
+          authUser?.photo
+        )
+        dispatch({
+          type: 'HYDRATE',
+          bill: cleanBill,
+          activePersonId: cleanBill.people[0]?.id || null,
+        })
       }
     }
+
+    initializeStore()
   }, [])
 
   // URL Query Sync: Allows deep-linking or viewing as a specific user via ?user=Name
@@ -128,12 +140,36 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [state.bill.people, state.activePersonId])
 
-  // Autosave: persist the active bill shortly after any meaningful edit.
+  // Autosave: persist the active bill locally & sync to backend server if logged in.
   React.useEffect(() => {
     if (!state.hydrated) return
     const timer = setTimeout(() => {
+      // 1. Local draft save
       if (persistDraft(state.bill)) {
         setDraftSavedAt(new Date().toISOString())
+      }
+
+      // 2. Multi-tenant cloud backend sync
+      const authUser = getStoredUser()
+      if (authUser) {
+        fetch('/api/cloud-bill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bill: state.bill }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.ok && data.result) {
+              dispatch({
+                type: 'CALCULATE_SUCCESS',
+                result: data.result,
+                calculatedFromUpdatedAt: state.bill.updatedAt,
+              })
+            }
+          })
+          .catch((err) => {
+            console.warn('Backend bill sync warning:', err)
+          })
       }
     }, 600)
     return () => clearTimeout(timer)
@@ -169,11 +205,13 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const startNewBill = React.useCallback(() => {
-    dispatch({ type: 'NEW_BILL', currency: stateRef.current.bill.currency })
+    const authUser = getStoredUser()
+    const clean = createCleanBill(stateRef.current.bill.currency, authUser?.name || 'You', authUser?.photo)
+    dispatch({ type: 'HYDRATE', bill: clean, activePersonId: clean.people[0]?.id || null })
   }, [])
 
   const load50DummyPeople = React.useCallback(() => {
-    dispatch({ type: 'LOAD_50_DUMMY_PEOPLE' })
+    // Deprecated: Prevent loading dummy mock people into real bills
   }, [])
 
   const clearItemsAndAdjustments = React.useCallback(() => {
@@ -182,8 +220,14 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
 
   const resetAllData = React.useCallback(() => {
     clearAllData()
-    dispatch({ type: 'HYDRATE', bill: createSampleBill() })
+    const authUser = getStoredUser()
+    const clean = createCleanBill(DEFAULT_CURRENCY, authUser?.name || 'You', authUser?.photo)
+    dispatch({ type: 'HYDRATE', bill: clean, activePersonId: clean.people[0]?.id || null })
     setDraftSavedAt(null)
+
+    if (authUser) {
+      fetch('/api/cloud-bill', { method: 'DELETE' }).catch(() => {})
+    }
   }, [])
 
   const setCurrency = React.useCallback((currency: CurrencyCode) => {

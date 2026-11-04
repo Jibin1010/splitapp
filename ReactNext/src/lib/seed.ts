@@ -80,6 +80,34 @@ export function createSampleBill(): Bill {
 
 export { create50PeopleBill, get50DummyPeople } from '@/lib/dummy-people'
 
+/** A clean initial bill with ONLY the active user (zero dummy people). */
+export function createCleanBill(
+  currency: CurrencyCode = 'INR',
+  userName?: string,
+  userPhoto?: string | null
+): Bill {
+  const now = new Date().toISOString()
+  const name = userName?.trim() || 'You'
+  const personId = newId('person')
+  return {
+    id: newId('bill'),
+    name: 'My Group Split',
+    currency,
+    items: [],
+    people: [
+      {
+        id: personId,
+        name,
+        paidAmount: 0,
+        photo: userPhoto ?? undefined,
+      },
+    ],
+    adjustments: [],
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 /** A fresh, empty bill. */
 export function createEmptyBill(currency: CurrencyCode): Bill {
   const now = new Date().toISOString()

@@ -65,16 +65,6 @@ export function PeoplePanel() {
               Participants in this bill with profile photos and recorded payments.
             </p>
             <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={load50DummyPeople}
-                className="h-7 gap-1 text-xs border-primary/30 text-primary hover:bg-primary/5"
-                title="Populate with 50 diverse people with photos and clear bill products"
-              >
-                <Sparkles className="size-3.5" />
-                Load 50 People
-              </Button>
               {(bill.items.length > 0 || bill.adjustments.length > 0) && (
                 <Button
                   variant="ghost"

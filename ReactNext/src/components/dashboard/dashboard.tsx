@@ -60,9 +60,9 @@ export function DashboardShell() {
 
       <footer className="relative z-10 mx-auto max-w-7xl px-4 pb-8 sm:px-6">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          SplitLedger keeps your bill in this browser’s local storage — it never syncs to other devices and no
-          account is needed. Calculations are sent only to this app’s own backend, which does the arithmetic with
-          integer-paise precision. If you clear this site’s stored data, saved bills are gone.
+          SplitLedger enforces server-side 5NF multi-tenant data isolation. Each user’s bills and expense groups are
+          securely synchronized on the cloud backend and accessible strictly by your authenticated account and verified
+          members added to your groups.
         </p>
       </footer>
 

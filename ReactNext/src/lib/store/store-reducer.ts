@@ -90,20 +90,8 @@ export function reducer(state: StoreState, action: StoreAction): StoreState {
         }),
       }
     case 'LOAD_50_DUMMY_PEOPLE':
-      return {
-        ...state,
-        bill: touch({
-          ...bill,
-          name: bill.name || 'Group Split',
-          items: [],
-          adjustments: [],
-          people: get50DummyPeople(),
-        }),
-        result: null,
-        error: null,
-        savedAt: null,
-        calculatedFromUpdatedAt: null,
-      }
+      // Prevent populating dummy people into real user sessions
+      return state
     case 'CLEAR_ITEMS_AND_ADJUSTMENTS':
       return {
         ...state,

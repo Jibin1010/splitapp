@@ -58,7 +58,7 @@ export function UserPerspectiveBar({ onOpenSwitcher }: { onOpenSwitcher: () => v
           onClick={onOpenSwitcher}
           className="flex items-center gap-1 shrink-0 rounded-xl border border-dashed border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:border-indigo-400 hover:text-indigo-600 transition-colors"
         >
-          <span>+ Switch</span>
+          <span>{people.length <= 1 ? '+ Add Group Member' : '+ Switch / Add'}</span>
         </button>
       </div>
     </div>
