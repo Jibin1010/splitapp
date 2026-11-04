@@ -22,6 +22,18 @@ const billMembers = new Map<string, Set<string>>()
 const isTestEnv = process.env.NODE_ENV === 'test' && !process.env.TEST_WITH_LIVE_DB
 
 /**
+ * Normalizes any bill or entity ID to a valid PostgreSQL UUID.
+ */
+export function toDbUuid(id: string): string {
+  const clean = id.replace(/^(bill|person|item|adj)[-_]/, '').toLowerCase()
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {
+    return clean
+  }
+  const hash = crypto.createHash('md5').update(id).digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`
+}
+
+/**
  * Creates an empty, clean bill strictly owned by the authenticated identity.
  * ZERO mock or dummy people are ever added.
  */
@@ -155,7 +167,7 @@ export async function getActiveBillForUser(
            VALUES ($1, $2, $3, $4, $5, clock_timestamp())
            ON CONFLICT (id) DO UPDATE 
            SET data = EXCLUDED.data, updated_at = clock_timestamp();`,
-          [newBill.id, identityId, newBill.name, newBill.currency, JSON.stringify(newBill)]
+          [toDbUuid(newBill.id), identityId, newBill.name, newBill.currency, JSON.stringify(newBill)]
         )
       } finally {
         client.release()
@@ -198,7 +210,7 @@ export async function saveActiveBillForUser(
       try {
         const existing = await client.query(
           `SELECT owner_identity_id FROM public.bills WHERE id = $1 LIMIT 1;`,
-          [bill.id]
+          [toDbUuid(bill.id)]
         )
         if (existing.rows.length > 0) {
           const dbOwner = existing.rows[0].owner_identity_id
@@ -206,7 +218,7 @@ export async function saveActiveBillForUser(
             // Check if identityId is registered as a member
             const memberCheck = await client.query(
               `SELECT 1 FROM public.bill_people WHERE bill_id = $1 AND identity_id = $2;`,
-              [bill.id, identityId]
+              [toDbUuid(bill.id), identityId]
             )
             if (memberCheck.rows.length === 0) {
               return {
@@ -258,7 +270,7 @@ export async function saveActiveBillForUser(
                data = EXCLUDED.data,
                updated_at = clock_timestamp();`,
           [
-            updatedBill.id,
+            toDbUuid(updatedBill.id),
             identityId,
             updatedBill.name || 'Group Split',
             updatedBill.currency,
@@ -273,7 +285,7 @@ export async function saveActiveBillForUser(
               `INSERT INTO public.bill_people (id, bill_id, name)
                VALUES ($1, $2, $3)
                ON CONFLICT (bill_id, name) DO NOTHING;`,
-              [person.id.length === 36 ? person.id : crypto.randomUUID(), updatedBill.id, person.name]
+              [toDbUuid(person.id), toDbUuid(updatedBill.id), person.name]
             ).catch(() => {})
           }
         }
@@ -308,7 +320,7 @@ export async function resetActiveBillForUser(
            VALUES ($1, $2, $3, $4, $5, clock_timestamp())
            ON CONFLICT (id) DO UPDATE 
            SET data = EXCLUDED.data, updated_at = clock_timestamp();`,
-          [cleanBill.id, identityId, cleanBill.name, cleanBill.currency, JSON.stringify(cleanBill)]
+          [toDbUuid(cleanBill.id), identityId, cleanBill.name, cleanBill.currency, JSON.stringify(cleanBill)]
         )
       } finally {
         client.release()
