@@ -102,7 +102,8 @@ export function getRandomPhoneForName(name: string): string {
  */
 export function searchPeopleSuggestions(
   query: string,
-  excludeNames: string[] = []
+  excludeNames: string[] = [],
+  limit: number = 10
 ): DummyPersonRaw[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
@@ -133,5 +134,5 @@ export function searchPeopleSuggestions(
     return aLower.localeCompare(bLower)
   })
 
-  return filtered.slice(0, 10)
+  return filtered.slice(0, limit)
 }
