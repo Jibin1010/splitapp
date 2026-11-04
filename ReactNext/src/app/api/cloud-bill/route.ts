@@ -81,10 +81,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const rawBill = body.bill || body
+    const payload = body.bill ? body : { bill: body }
 
     // Validate bill schema constraints
-    const parsed = parseBillPayload(rawBill)
+    const parsed = parseBillPayload(payload)
     if (!parsed.ok) {
       return NextResponse.json(
         {
