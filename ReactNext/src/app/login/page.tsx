@@ -89,7 +89,7 @@ export default function LoginPage() {
               <div className="mb-6">
                 <h2 className="text-xl font-black text-slate-950">Access Account</h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Enter your credentials below or test with 1-click Demo.
+                  Enter your credentials below to access your account.
                 </p>
               </div>
 

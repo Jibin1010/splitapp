@@ -194,13 +194,6 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
     }
   }
 
-  const handleDemoFill = () => {
-    setMode('login')
-    setLoginEmail('maya@splitledger.app')
-    setLoginPassword('password123')
-    setError(null)
-  }
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -457,7 +450,7 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
               <label className="text-xs font-bold text-slate-700">Password</label>
               <button
                 type="button"
-                onClick={() => setError('Password reset link is not active in this demo. Try Maya demo account!')}
+                onClick={() => setError('Password reset instructions will be sent to your registered email.')}
                 className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
               >
                 Forgot password?
@@ -494,16 +487,6 @@ export function AuthForm({ initialMode = 'login', onSuccess, isModal = false }: 
               />
               <span className="text-xs font-medium text-slate-600">Remember this device</span>
             </label>
-
-            <button
-              type="button"
-              onClick={handleDemoFill}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
-              title="Autofill Maya Sharma demo credentials"
-            >
-              <Sparkles className="size-3 text-indigo-600" />
-              <span>Autofill Demo</span>
-            </button>
           </div>
 
           <button
