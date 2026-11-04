@@ -35,11 +35,12 @@ export type StoreAction =
   | { type: 'REMOVE_ITEM'; itemId: string }
   | { type: 'DUPLICATE_ITEM'; itemId: string }
   | { type: 'SET_ALLOCATION'; itemId: string; allocation: Allocation }
-  | { type: 'ADD_PERSON'; name: string; photo?: string; switchTo?: boolean }
+  | { type: 'ADD_PERSON'; name: string; photo?: string; phone?: string; isPhoneVerified?: boolean; switchTo?: boolean }
   | { type: 'RENAME_PERSON'; personId: string; name: string }
   | { type: 'UPDATE_PERSON'; personId: string; name: string }
   | { type: 'SET_PERSON_PHOTO'; personId: string; photo: string }
   | { type: 'LOAD_50_DUMMY_PEOPLE' }
+  | { type: 'LOAD_1000_VERIFIED_PEOPLE' }
   | { type: 'CLEAR_ITEMS_AND_ADJUSTMENTS' }
   | { type: 'CLEAR_ALL_ITEMS' }
   | {
@@ -103,6 +104,7 @@ export interface StoreContextValue {
   /** Update the default currency preference for future bills. */
   setCurrency: (currency: CurrencyCode) => void
   load50DummyPeople: () => void
+  load1000VerifiedPeople: () => void
   clearItemsAndAdjustments: () => void
   draftSavedAt: string | null
 }

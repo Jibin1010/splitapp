@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, Plus, Sparkles, UserCheck, Users, Wallet } from 'lucide-react'
+import { Check, Plus, ShieldCheck, Sparkles, UserCheck, Users, Wallet } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import { useBillStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
@@ -141,6 +141,12 @@ export function UserSwitcherDialog({
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
                               PAYER
                             </Badge>
+                          )}
+                          {person.phone && (
+                            <span className="inline-flex items-center gap-0.5 font-mono text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200/90 rounded px-1 py-0.2">
+                              <ShieldCheck className="size-2.5 text-emerald-600 shrink-0" />
+                              <span>{person.phone}</span>
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">

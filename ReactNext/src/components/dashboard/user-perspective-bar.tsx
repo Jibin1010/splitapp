@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Users } from 'lucide-react'
+import { ShieldCheck, Users } from 'lucide-react'
 import { useBillStore } from '@/lib/store'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,11 @@ export function UserPerspectiveBar({ onOpenSwitcher }: { onOpenSwitcher: () => v
             >
               <PersonAvatar name={person.name} photo={person.photo} size="xs" />
               <span>{person.name}</span>
+              {person.isPhoneVerified && (
+                <span title={`Verified Phone: ${person.phone || ''}`}>
+                  <ShieldCheck className="size-3 text-emerald-400 shrink-0" />
+                </span>
+              )}
               {isSelected && <span className="size-1.5 rounded-full bg-white animate-pulse" />}
             </button>
           )

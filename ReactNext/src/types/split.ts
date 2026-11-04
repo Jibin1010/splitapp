@@ -20,6 +20,10 @@ export interface Person {
   paidAmount: Paise
   /** Optional URL or data URI for the person's profile photo or avatar. */
   photo?: string
+  /** Verified mobile phone number in E.164 format (e.g. +919876543210). */
+  phone?: string
+  /** Whether the phone number has been verified via physical SIM / Telegram / WhatsApp check. */
+  isPhoneVerified?: boolean
 }
 
 /**

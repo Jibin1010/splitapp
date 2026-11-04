@@ -214,6 +214,10 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
     // Deprecated: Prevent loading dummy mock people into real bills
   }, [])
 
+  const load1000VerifiedPeople = React.useCallback(() => {
+    dispatch({ type: 'LOAD_1000_VERIFIED_PEOPLE' })
+  }, [])
+
   const clearItemsAndAdjustments = React.useCallback(() => {
     dispatch({ type: 'CLEAR_ITEMS_AND_ADJUSTMENTS' })
   }, [])
@@ -300,6 +304,7 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
       saveNamedDraft,
       startNewBill,
       load50DummyPeople,
+      load1000VerifiedPeople,
       clearItemsAndAdjustments,
       resetAllData,
       setCurrency,
@@ -318,6 +323,7 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
       saveNamedDraft,
       startNewBill,
       load50DummyPeople,
+      load1000VerifiedPeople,
       clearItemsAndAdjustments,
       resetAllData,
       setCurrency,

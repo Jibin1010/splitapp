@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, Image as ImageIcon, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Image as ImageIcon, Pencil, ShieldCheck, Trash2, X } from 'lucide-react'
 import type { Person } from '@/types/split'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -79,7 +79,7 @@ export function PersonListItem({
             </div>
           ) : (
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => onSetActivePerson(person.id)}
@@ -92,6 +92,13 @@ export function PersonListItem({
                   <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
                     Active View
                   </Badge>
+                )}
+                {person.phone && (
+                  <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200/90 rounded px-1.5 py-0.5">
+                    <ShieldCheck className="size-3 text-emerald-600 shrink-0" />
+                    <span>{person.phone}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Verified</span>
+                  </span>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">

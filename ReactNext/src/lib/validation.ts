@@ -65,6 +65,8 @@ export const personSchema = z.object({
   name: z.string().max(200, 'Names must be 200 characters or fewer.'),
   paidAmount: paiseSchema,
   photo: z.string().optional(),
+  phone: z.string().optional(),
+  isPhoneVerified: z.boolean().optional(),
 })
 
 export const adjustmentSchema = z.object({
@@ -80,8 +82,8 @@ export const billSchema = z.object({
   id: idSchema,
   name: z.string().max(200),
   currency: z.enum(['INR', 'USD', 'EUR', 'GBP']),
-  items: z.array(productItemSchema).max(1000),
-  people: z.array(personSchema).max(500),
+  items: z.array(productItemSchema).max(2000),
+  people: z.array(personSchema).max(2000),
   adjustments: z.array(adjustmentSchema).max(50),
   vendor: z.string().max(200).optional(),
   date: z.string().max(100).optional(),

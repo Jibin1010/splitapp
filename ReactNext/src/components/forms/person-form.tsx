@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, Image as ImageIcon, UserPlus } from 'lucide-react'
+import { AlertTriangle, Image as ImageIcon, ShieldCheck, UserPlus } from 'lucide-react'
 import { normalizeName } from '@/lib/calculations'
 import { useBillStore } from '@/lib/store'
 import { getRandomAvatarForName, searchPeopleSuggestions } from '@/lib/dummy-people'
@@ -42,7 +42,12 @@ export function PersonForm() {
 
   const previewPhoto = photo.trim() || (name.trim() ? getRandomAvatarForName(name.trim()) : undefined)
 
-  const handleAddDirect = (personName: string, personPhoto?: string) => {
+  const handleAddDirect = (
+    personName: string,
+    personPhoto?: string,
+    personPhone?: string,
+    personVerified?: boolean
+  ) => {
     const trimmed = personName.trim()
     if (!trimmed) return
     const isDuplicate = state.bill.people.some(
@@ -55,7 +60,13 @@ export function PersonForm() {
       return
     }
     const finalPhoto = personPhoto?.trim() || getRandomAvatarForName(trimmed)
-    dispatch({ type: 'ADD_PERSON', name: trimmed.slice(0, 200), photo: finalPhoto })
+    dispatch({
+      type: 'ADD_PERSON',
+      name: trimmed.slice(0, 200),
+      photo: finalPhoto,
+      phone: personPhone,
+      isPhoneVerified: personVerified !== undefined ? personVerified : true,
+    })
     setName('')
     setPhoto('')
     setShowPhotoInput(false)
@@ -68,7 +79,7 @@ export function PersonForm() {
     event.preventDefault()
     if (showSuggestions && highlightedIndex >= 0 && highlightedIndex < peopleSuggestions.length) {
       const picked = peopleSuggestions[highlightedIndex]
-      handleAddDirect(picked.name, picked.photo)
+      handleAddDirect(picked.name, picked.photo, picked.phone, picked.isPhoneVerified)
     } else {
       handleAddDirect(name, photo)
     }
@@ -124,22 +135,45 @@ export function PersonForm() {
                 <button
                   key={person.name}
                   type="button"
-                  onClick={() => handleAddDirect(person.name, person.photo)}
+                  onClick={() => handleAddDirect(person.name, person.photo, person.phone, person.isPhoneVerified)}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors cursor-pointer',
+                    'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer',
                     index === highlightedIndex
                       ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                       : 'hover:bg-muted text-foreground'
                   )}
                 >
-                  <PersonAvatar name={person.name} photo={person.photo} size="xs" />
-                  <span className="flex-1 truncate">{person.name}</span>
+                  <PersonAvatar name={person.name} photo={person.photo} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <span className="block truncate font-semibold">{person.name}</span>
+                    {person.phone && (
+                      <span
+                        className={cn(
+                          'flex items-center gap-1 font-mono text-[10px]',
+                          index === highlightedIndex ? 'text-primary-foreground/90' : 'text-emerald-700'
+                        )}
+                      >
+                        <ShieldCheck className="size-3 text-emerald-500 shrink-0" />
+                        <span>{person.phone}</span>
+                        <span
+                          className={cn(
+                            'text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded',
+                            index === highlightedIndex
+                              ? 'bg-white/20 text-white'
+                              : 'bg-emerald-100 text-emerald-800'
+                          )}
+                        >
+                          Verified
+                        </span>
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={cn(
-                      'text-[10px]',
+                      'text-[10px] shrink-0 font-semibold',
                       index === highlightedIndex
-                        ? 'text-primary-foreground/90 font-semibold'
+                        ? 'text-primary-foreground/90'
                         : 'text-muted-foreground'
                     )}
                   >

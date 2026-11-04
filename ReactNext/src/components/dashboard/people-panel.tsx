@@ -20,7 +20,7 @@ import { RemovePersonDialog } from './people/remove-person-dialog'
  * the 50 dummy people preset with a single click.
  */
 export function PeoplePanel() {
-  const { state, dispatch, load50DummyPeople, clearItemsAndAdjustments, activePerson, setActivePerson } = useBillStore()
+  const { state, dispatch, load1000VerifiedPeople, clearItemsAndAdjustments, activePerson, setActivePerson } = useBillStore()
   const bill = state.bill
   const totals = billTotalsOf(bill)
 
@@ -65,6 +65,16 @@ export function PeoplePanel() {
               Participants in this bill with profile photos and recorded payments.
             </p>
             <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={load1000VerifiedPeople}
+                className="h-7 gap-1 text-xs border-emerald-300 text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100"
+                title="Populate test bill with 1,000 verified dummy contacts"
+              >
+                <Sparkles className="size-3 text-emerald-600" />
+                Load 1,000 Verified People
+              </Button>
               {(bill.items.length > 0 || bill.adjustments.length > 0) && (
                 <Button
                   variant="ghost"

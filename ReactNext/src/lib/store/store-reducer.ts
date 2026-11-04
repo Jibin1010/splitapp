@@ -1,7 +1,7 @@
 import type { Allocation, ProductItem } from '@/types/split'
 import { allocationWithoutPerson, billTotalsOf } from '@/lib/calculations'
 import { createEmptyBill } from '@/lib/seed'
-import { get50DummyPeople, getRandomAvatarForName } from '@/lib/dummy-people'
+import { get1000DummyPeople, getRandomAvatarForName, getRandomPhoneForName } from '@/lib/dummy-people'
 import { newId } from '@/lib/id'
 import type { StoreAction, StoreState } from './store-types'
 import { handleImportAnalysisResult, touch } from './store-import-handler'
@@ -63,11 +63,16 @@ export function reducer(state: StoreState, action: StoreAction): StoreState {
       if (!trimmed) return state
       const personId = newId('person')
       const photo = action.photo || getRandomAvatarForName(trimmed)
+      const phone = action.phone || getRandomPhoneForName(trimmed)
+      const isPhoneVerified = action.isPhoneVerified !== undefined ? action.isPhoneVerified : true
       return {
         ...state,
         bill: touch({
           ...bill,
-          people: [...bill.people, { id: personId, name: trimmed, paidAmount: 0, photo }],
+          people: [
+            ...bill.people,
+            { id: personId, name: trimmed, paidAmount: 0, photo, phone, isPhoneVerified },
+          ],
         }),
         activePersonId: action.switchTo ? personId : state.activePersonId,
       }
@@ -90,8 +95,23 @@ export function reducer(state: StoreState, action: StoreAction): StoreState {
         }),
       }
     case 'LOAD_50_DUMMY_PEOPLE':
-      // Prevent populating dummy people into real user sessions
+      // Prevent automatic injection on session start
       return state
+    case 'LOAD_1000_VERIFIED_PEOPLE':
+      return {
+        ...state,
+        bill: touch({
+          ...bill,
+          name: bill.name || '1000 Verified People Split',
+          items: [],
+          adjustments: [],
+          people: get1000DummyPeople(),
+        }),
+        result: null,
+        error: null,
+        savedAt: null,
+        calculatedFromUpdatedAt: null,
+      }
     case 'CLEAR_ITEMS_AND_ADJUSTMENTS':
       return {
         ...state,

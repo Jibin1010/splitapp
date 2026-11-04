@@ -1,23 +1,58 @@
 import type { Bill, CurrencyCode, Person } from '@/types/split'
 import { newId } from '@/lib/id'
-import { DUMMY_PEOPLE_RAW, ALL_SUGGESTED_NAMES } from './dummy-people-data'
+import { DUMMY_PEOPLE_RAW, ALL_SUGGESTED_NAMES, type DummyPersonRaw } from './dummy-people-data'
 
 export { DUMMY_PEOPLE_RAW, ALL_SUGGESTED_NAMES }
+export type { DummyPersonRaw }
 
 /**
- * Returns 50 fresh Person objects with unique IDs, realistic names and photos.
+ * Returns all 1,000 fresh Person objects with unique IDs, names, portrait avatars,
+ * and verified E.164 phone numbers.
  */
-export function get50DummyPeople(): Person[] {
+export function get1000DummyPeople(): Person[] {
   return DUMMY_PEOPLE_RAW.map((person) => ({
     id: newId('person'),
     name: person.name,
     photo: person.photo,
     paidAmount: 0,
+    phone: person.phone,
+    isPhoneVerified: true,
   }))
 }
 
 /**
- * Creates a clean bill with 0 items, 0 adjustments, and all 50 dummy people.
+ * Returns 50 fresh Person objects with unique IDs, realistic names, photos, and verified phone numbers.
+ */
+export function get50DummyPeople(): Person[] {
+  return DUMMY_PEOPLE_RAW.slice(0, 50).map((person) => ({
+    id: newId('person'),
+    name: person.name,
+    photo: person.photo,
+    paidAmount: 0,
+    phone: person.phone,
+    isPhoneVerified: true,
+  }))
+}
+
+/**
+ * Creates a bill with 0 items, 0 adjustments, and 1,000 verified dummy people.
+ */
+export function create1000PeopleBill(currency: CurrencyCode = 'INR'): Bill {
+  const now = new Date().toISOString()
+  return {
+    id: newId('bill'),
+    name: '1000 Verified People Split',
+    currency,
+    items: [],
+    adjustments: [],
+    people: get1000DummyPeople(),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+/**
+ * Creates a clean bill with 0 items, 0 adjustments, and 50 verified dummy people.
  */
 export function create50PeopleBill(currency: CurrencyCode = 'INR'): Bill {
   const now = new Date().toISOString()
@@ -48,13 +83,27 @@ export function getRandomAvatarForName(name: string): string {
 }
 
 /**
- * Searches person name suggestions matching a query string or letter prefix.
- * Prioritizes names starting with the query.
+ * Derives a deterministic verified phone number for any person name.
+ */
+export function getRandomPhoneForName(name: string): string {
+  if (!name.trim()) return '+919820000001'
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i)
+    hash |= 0
+  }
+  const num = (Math.abs(hash) % 1000) + 1
+  return `+919820${String(num).padStart(6, '0')}`
+}
+
+/**
+ * Searches person name and phone suggestions matching a query string across all 1,000 verified dummy people.
+ * Supports searching by letters or digits (e.g. "Maya", "Aarav", "98200").
  */
 export function searchPeopleSuggestions(
   query: string,
   excludeNames: string[] = []
-): Array<{ name: string; photo: string }> {
+): DummyPersonRaw[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
 
@@ -63,7 +112,7 @@ export function searchPeopleSuggestions(
   const filtered = ALL_SUGGESTED_NAMES.filter((p) => {
     const lower = p.name.toLowerCase()
     if (excludeSet.has(lower)) return false
-    return lower.includes(q)
+    return lower.includes(q) || p.phone.includes(q)
   })
 
   filtered.sort((a, b) => {
@@ -84,5 +133,5 @@ export function searchPeopleSuggestions(
     return aLower.localeCompare(bLower)
   })
 
-  return filtered.slice(0, 8)
+  return filtered.slice(0, 10)
 }
