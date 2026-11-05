@@ -20,6 +20,7 @@ import {
   encryptReceipt,
   decryptReceipt,
   createDecryptedObjectUrl,
+  vaultCiphertextCache,
 } from '@/lib/crypto/vault-crypto'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,6 +66,7 @@ export function BillVaultCard({ onOpenVision }: { onOpenVision?: () => void }) {
 
       // Cache ciphertext in memory for quick retrieval
       memoryCiphertextStore.set(bill.id, ciphertextBuffer)
+      vaultCiphertextCache.set(bill.id, ciphertextBuffer)
 
       // Convert ciphertext to base64 for API transfer
       let binary = ''
@@ -86,6 +88,7 @@ export function BillVaultCard({ onOpenVision }: { onOpenVision?: () => void }) {
           keyBase64,
           fileName: file.name,
           mimeType: file.type || 'image/jpeg',
+          people: bill.people,
         }),
       })
 
@@ -127,7 +130,7 @@ export function BillVaultCard({ onOpenVision }: { onOpenVision?: () => void }) {
       }
 
       const keyBase64 = data.keyBase64
-      let ciphertext = memoryCiphertextStore.get(bill.id)
+      let ciphertext = vaultCiphertextCache.get(bill.id) || memoryCiphertextStore.get(bill.id)
 
       // If not in local memory, synthesize / fetch the encrypted ciphertext
       if (!ciphertext) {
@@ -182,7 +185,7 @@ export function BillVaultCard({ onOpenVision }: { onOpenVision?: () => void }) {
 
               <p className="text-[11px] text-slate-600 truncate pt-0.5">
                 {vaultFile
-                  ? `Folder: ${vaultFile.folderName} · ${vaultFile.fileName}`
+                  ? `Folder: ${vaultFile.folderName} · ${vaultFile.fileName} · Locked to ${bill.people.length} group participant${bill.people.length === 1 ? '' : 's'}`
                   : 'Scrambles bills into AES-256 ciphertext before uploading to Google Drive. Outsiders with the link see useless code.'}
               </p>
             </div>

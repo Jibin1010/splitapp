@@ -98,5 +98,52 @@ describe('Google Drive Zero-Knowledge Vault Architecture', () => {
       expect(decryptedText).toBe(originalReceipt)
     }
   })
+
+  it('5. should allow newly added participants from the import step to retrieve the key, while blocking non-members', async () => {
+    const importBillId = 'bill-imported-group-5678'
+    const newGroupKey = await generateVaultKey()
+
+    // Simulate user adding participants in Vision dialog and pressing Import
+    await saveGroupVaultKey({
+      billId: importBillId,
+      keyBase64: newGroupKey,
+      userIdentityId: 'host-user-id',
+      members: [
+        { id: 'person-rahul', name: 'Rahul Verma' },
+        { id: 'person-priya', name: 'Priya Nair' },
+      ],
+    })
+
+    // 1. Newly added participant 'Rahul Verma' attempts to unlock
+    const rahulUnlock = await getGroupVaultKey({
+      billId: importBillId,
+      requestingUserName: 'Rahul Verma',
+    })
+    expect(rahulUnlock.success).toBe(true)
+    if (rahulUnlock.success) {
+      expect(rahulUnlock.keyBase64).toBe(newGroupKey)
+    }
+
+    // 2. Newly added participant 'Priya Nair' attempts to unlock (case-insensitive)
+    const priyaUnlock = await getGroupVaultKey({
+      billId: importBillId,
+      requestingUserName: 'priya nair',
+    })
+    expect(priyaUnlock.success).toBe(true)
+    if (priyaUnlock.success) {
+      expect(priyaUnlock.keyBase64).toBe(newGroupKey)
+    }
+
+    // 3. Outsider who was NOT added in the group attempts to unlock
+    const outsiderUnlock = await getGroupVaultKey({
+      billId: importBillId,
+      requestingUserName: 'Unknown Intruder',
+    })
+    expect(outsiderUnlock.success).toBe(false)
+    if (!outsiderUnlock.success) {
+      expect(outsiderUnlock.status).toBe(403)
+      expect(outsiderUnlock.error).toContain('Access denied')
+    }
+  })
 })
 

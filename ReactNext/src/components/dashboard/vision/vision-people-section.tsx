@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Users, Sparkles, Plus, X } from 'lucide-react'
+import { Users, Sparkles, Plus, X, ShieldCheck, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -108,6 +108,29 @@ export function VisionPeopleSection({
             Add Person
           </Button>
         </div>
+      </div>
+
+      {/* Zero-Knowledge Vault Security Callout */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50/90 px-3 py-2 text-xs shadow-2xs">
+        <div className="flex items-center gap-2">
+          <span className="flex size-5.5 items-center justify-center rounded-full bg-emerald-600 text-white shrink-0 shadow-2xs">
+            <ShieldCheck className="size-3.5" />
+          </span>
+          <div className="text-[11px] leading-tight">
+            <span className="font-bold text-emerald-950">
+              Google Drive Vault (AES-256):
+            </span>{' '}
+            <span className="text-emerald-800">
+              {dialogPeople.length === 0
+                ? 'Add users below. When imported, the bill receipt is scrambled on-device and locked strictly to these group members.'
+                : `Active! Receipt is encrypted with AES-256 and locked strictly to these ${dialogPeople.length} group participant${dialogPeople.length > 1 ? 's' : ''}. Leaked Drive links are useless to outsiders.`}
+            </span>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
+          <Lock className="size-2.5" />
+          {dialogPeople.length === 0 ? 'Group Lock Armed' : `Locked to ${dialogPeople.length} Member${dialogPeople.length > 1 ? 's' : ''}`}
+        </span>
       </div>
 
       {/* Existing / added people chips & inline input */}

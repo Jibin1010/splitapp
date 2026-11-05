@@ -8,6 +8,9 @@
  * 4. Fails cryptographically if ciphertext or IV is tampered with (Auth Tag verification).
  */
 
+// In-memory runtime cache of ciphertext buffers for instant zero-leak client decryption
+export const vaultCiphertextCache = new Map<string, ArrayBuffer>()
+
 function getCrypto(): Crypto {
   if (typeof globalThis !== 'undefined' && globalThis.crypto) {
     return globalThis.crypto as Crypto

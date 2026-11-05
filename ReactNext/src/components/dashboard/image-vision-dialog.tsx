@@ -251,8 +251,10 @@ export function ImageVisionDialog({
                             disabled={v.itemsList.length === 0}
                             className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow font-semibold text-xs px-4 h-9 cursor-pointer"
                           >
-                            <ArrowRight className="size-4" />
-                            Import &amp; Proceed to Bill Split →
+                            <ShieldCheck className="size-4 text-emerald-200" />
+                            {v.dialogPeople.length > 0
+                              ? `Import & Lock for Group (${v.dialogPeople.length}) →`
+                              : 'Import & Proceed to Bill Split →'}
                           </Button>
                         </div>
                       </div>

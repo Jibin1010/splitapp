@@ -1,13 +1,42 @@
 import { Pool } from 'pg'
 import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
+
+if (!process.env.DATABASE_URL) {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env.local')
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8')
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) continue
+        const eqIdx = trimmed.indexOf('=')
+        if (eqIdx !== -1) {
+          const key = trimmed.slice(0, eqIdx).trim()
+          const val = trimmed.slice(eqIdx + 1).trim()
+          if (!process.env[key]) {
+            process.env[key] = val
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
 const SUPABASE_DB_URL =
   process.env.DATABASE_URL ||
   process.env.SUPABASE_POSTGRES_URL ||
   'postgresql://postgres@localhost:5432/postgres'
 
+
+
 const isLocalhost =
   SUPABASE_DB_URL.includes('localhost') || SUPABASE_DB_URL.includes('127.0.0.1')
+
+const isTestEnv = process.env.NODE_ENV === 'test' && !process.env.TEST_WITH_LIVE_DB
 
 // Initialize PostgreSQL connection pool with SSL for Supabase (disabled on localhost)
 export const pool = new Pool({
@@ -15,7 +44,7 @@ export const pool = new Pool({
   ssl: isLocalhost ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: isTestEnv ? 250 : 5000,
 })
 
 // Cryptographic Password Hashing (PBKDF2-SHA256 with 100,000 iterations)

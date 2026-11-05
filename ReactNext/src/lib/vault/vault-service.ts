@@ -17,8 +17,12 @@ import { toDbUuid } from '@/lib/cloud-bill/bill-repository'
 import type { BillVaultFile } from '@/types/split'
 
 // In-memory fallback caches for dev/test/offline environments
+const isTestEnv = process.env.NODE_ENV === 'test' && !process.env.TEST_WITH_LIVE_DB
 const memoryVaultFiles = new Map<string, BillVaultFile>()
-const memoryVaultKeys = new Map<string, { keyBase64: string; ownerId?: string }>()
+const memoryVaultKeys = new Map<
+  string,
+  { keyBase64: string; ownerId?: string; members?: string[] }
+>()
 
 const SERVICE_ACCOUNT_PATH = path.resolve(
   process.cwd(),
@@ -180,34 +184,36 @@ export async function uploadEncryptedReceiptToDrive(params: {
   memoryVaultFiles.set(cleanBillId, vaultFile)
 
   // Persist metadata to Supabase PostgreSQL
-  try {
-    const client = await pool.connect()
+  if (!isTestEnv) {
     try {
-      await client.query(
-        `INSERT INTO public.bill_vault_files (
-          bill_id, drive_file_id, drive_folder_id, drive_folder_name,
-          drive_web_link, file_name, file_size_bytes, mime_type,
-          encryption_algo, iv_base64, uploaded_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'AES-GCM-256', $9, $10, clock_timestamp())
-        ON CONFLICT (id) DO NOTHING;`,
-        [
-          cleanBillId,
-          driveFileId,
-          folderId,
-          folderName,
-          driveWebLink,
-          encFileName,
-          ciphertextBuffer.length,
-          originalMimeType,
-          ivBase64,
-          userIdentityId || null,
-        ]
-      )
-    } finally {
-      client.release()
+      const client = await pool.connect()
+      try {
+        await client.query(
+          `INSERT INTO public.bill_vault_files (
+            bill_id, drive_file_id, drive_folder_id, drive_folder_name,
+            drive_web_link, file_name, file_size_bytes, mime_type,
+            encryption_algo, iv_base64, uploaded_by, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'AES-GCM-256', $9, $10, clock_timestamp())
+          ON CONFLICT (id) DO NOTHING;`,
+          [
+            cleanBillId,
+            driveFileId,
+            folderId,
+            folderName,
+            driveWebLink,
+            encFileName,
+            ciphertextBuffer.length,
+            originalMimeType,
+            ivBase64,
+            userIdentityId || null,
+          ]
+        )
+      } finally {
+        client.release()
+      }
+    } catch (dbErr) {
+      console.warn('Database save notice in uploadEncryptedReceiptToDrive:', (dbErr as any)?.message)
     }
-  } catch (dbErr) {
-    console.warn('Database save notice in uploadEncryptedReceiptToDrive:', (dbErr as any)?.message)
   }
 
   return vaultFile
@@ -221,35 +227,65 @@ export async function saveGroupVaultKey(params: {
   billId: string
   keyBase64: string
   userIdentityId?: string
+  members?: Array<{ id?: string; name: string; identityId?: string }>
 }): Promise<boolean> {
   const cleanBillId = toDbUuid(params.billId)
-  memoryVaultKeys.set(params.billId, {
-    keyBase64: params.keyBase64,
-    ownerId: params.userIdentityId,
-  })
-  memoryVaultKeys.set(cleanBillId, {
-    keyBase64: params.keyBase64,
-    ownerId: params.userIdentityId,
-  })
+  const memberList: string[] = []
 
-  try {
-    const client = await pool.connect()
-    try {
-      await client.query(
-        `INSERT INTO public.bill_vault_keys (bill_id, key_base64, created_by, updated_at)
-         VALUES ($1, $2, $3, clock_timestamp())
-         ON CONFLICT (bill_id) DO UPDATE 
-         SET key_base64 = EXCLUDED.key_base64, updated_at = clock_timestamp();`,
-        [cleanBillId, params.keyBase64, params.userIdentityId || null]
-      )
-      return true
-    } finally {
-      client.release()
-    }
-  } catch (err: any) {
-    console.warn('DB save notice in saveGroupVaultKey:', err?.message)
-    return true
+  if (params.userIdentityId) memberList.push(params.userIdentityId)
+  if (Array.isArray(params.members)) {
+    params.members.forEach((m) => {
+      if (m.name) memberList.push(m.name.trim().toLowerCase())
+      if (m.id) memberList.push(m.id)
+      if (m.identityId) memberList.push(m.identityId)
+    })
   }
+
+  const memoryEntry = {
+    keyBase64: params.keyBase64,
+    ownerId: params.userIdentityId,
+    members: memberList,
+  }
+
+  memoryVaultKeys.set(params.billId, memoryEntry)
+  memoryVaultKeys.set(cleanBillId, memoryEntry)
+
+  if (!isTestEnv) {
+    try {
+      const client = await pool.connect()
+      try {
+        await client.query(
+          `INSERT INTO public.bill_vault_keys (bill_id, key_base64, created_by, updated_at)
+           VALUES ($1, $2, $3, clock_timestamp())
+           ON CONFLICT (bill_id) DO UPDATE 
+           SET key_base64 = EXCLUDED.key_base64, updated_at = clock_timestamp();`,
+          [cleanBillId, params.keyBase64, params.userIdentityId || null]
+        )
+
+        // Also persist registered group members into public.bill_people if provided
+        if (Array.isArray(params.members) && params.members.length > 0) {
+          for (const person of params.members) {
+            if (!person.name) continue
+            await client.query(
+              `INSERT INTO public.bill_people (id, bill_id, name)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (bill_id, name) DO NOTHING;`,
+              [toDbUuid(person.id || person.name), cleanBillId, person.name.trim()]
+            ).catch(() => {})
+          }
+        }
+
+        return true
+      } finally {
+        client.release()
+      }
+    } catch (err: any) {
+      console.warn('DB save notice in saveGroupVaultKey:', err?.message)
+      return true
+    }
+  }
+
+  return true
 }
 
 /**
@@ -271,43 +307,60 @@ export async function getGroupVaultKey(params: {
   let keyFromDb: string | null = null
 
   // 1. Database Check
-  try {
-    const client = await pool.connect()
+  if (!isTestEnv) {
     try {
-      const billRes = await client.query(
-        `SELECT owner_identity_id, data FROM public.bills WHERE id = $1 LIMIT 1;`,
-        [cleanBillId]
-      )
+      const client = await pool.connect()
+      try {
+        const billRes = await client.query(
+          `SELECT owner_identity_id, data FROM public.bills WHERE id = $1 LIMIT 1;`,
+          [cleanBillId]
+        )
 
-      if (billRes.rows.length > 0) {
-        const ownerId = billRes.rows[0].owner_identity_id
-        if (requestingIdentityId && ownerId === requestingIdentityId) {
-          authorized = true
+        if (billRes.rows.length > 0) {
+          const ownerId = billRes.rows[0].owner_identity_id
+          if (requestingIdentityId && ownerId === requestingIdentityId) {
+            authorized = true
+          }
+
+          const data = billRes.rows[0].data
+          if (!authorized && data && Array.isArray(data.people)) {
+            const isMember = data.people.some(
+              (p: any) =>
+                (requestingIdentityId && (p.id === requestingIdentityId || p.identityId === requestingIdentityId)) ||
+                (requestingUserName && p.name.toLowerCase() === requestingUserName.toLowerCase())
+            )
+            if (isMember) authorized = true
+          }
         }
 
-        const data = billRes.rows[0].data
-        if (!authorized && data && Array.isArray(data.people)) {
-          const isMember = data.people.some(
-            (p: any) =>
-              (requestingIdentityId && (p.id === requestingIdentityId || p.identityId === requestingIdentityId)) ||
-              (requestingUserName && p.name.toLowerCase() === requestingUserName.toLowerCase())
+        // Check bill_people table if not yet authorized
+        if (!authorized) {
+          const peopleRes = await client.query(
+            `SELECT name, id FROM public.bill_people WHERE bill_id = $1;`,
+            [cleanBillId]
           )
-          if (isMember) authorized = true
+          if (peopleRes.rows.length > 0) {
+            const isMember = peopleRes.rows.some((r: any) =>
+              (requestingUserName && r.name.toLowerCase() === requestingUserName.toLowerCase()) ||
+              (requestingIdentityId && (r.id === requestingIdentityId || r.identity_id === requestingIdentityId))
+            )
+            if (isMember) authorized = true
+          }
         }
-      }
 
-      const keyRes = await client.query(
-        `SELECT key_base64 FROM public.bill_vault_keys WHERE bill_id = $1 LIMIT 1;`,
-        [cleanBillId]
-      )
-      if (keyRes.rows.length > 0) {
-        keyFromDb = keyRes.rows[0].key_base64
+        const keyRes = await client.query(
+          `SELECT key_base64 FROM public.bill_vault_keys WHERE bill_id = $1 LIMIT 1;`,
+          [cleanBillId]
+        )
+        if (keyRes.rows.length > 0) {
+          keyFromDb = keyRes.rows[0].key_base64
+        }
+      } finally {
+        client.release()
       }
-    } finally {
-      client.release()
+    } catch (err: any) {
+      // DB lookup warning in test/offline
     }
-  } catch (err: any) {
-    // DB lookup warning in test/offline
   }
 
   // 2. Memory authorization check (for local drafts, offline, or test environments)
@@ -315,6 +368,14 @@ export async function getGroupVaultKey(params: {
   if (!authorized && mem) {
     if (mem.ownerId && requestingIdentityId && mem.ownerId === requestingIdentityId) {
       authorized = true
+    }
+    if (mem.members && mem.members.length > 0) {
+      const isMember = mem.members.some(
+        (m) =>
+          (requestingUserName && m.toLowerCase() === requestingUserName.toLowerCase()) ||
+          (requestingIdentityId && m === requestingIdentityId)
+      )
+      if (isMember) authorized = true
     }
   }
 

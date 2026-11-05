@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
       fileName,
       mimeType,
       googleAccessToken,
+      people,
+      members,
     } = body
 
     if (!billId || !ciphertextBase64 || !ivBase64 || !keyBase64) {
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
       billId,
       keyBase64,
       userIdentityId,
+      members: Array.isArray(people) ? people : Array.isArray(members) ? members : undefined,
     })
 
     // 2. Upload Encrypted (.enc) file to Google Drive

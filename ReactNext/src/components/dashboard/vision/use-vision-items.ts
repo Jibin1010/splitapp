@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { newId } from '@/lib/id'
 import { getRandomAvatarForName } from '@/lib/dummy-people'
-import { generateVaultKey, encryptReceipt } from '@/lib/crypto/vault-crypto'
+import { generateVaultKey, encryptReceipt, vaultCiphertextCache } from '@/lib/crypto/vault-crypto'
 import type { Adjustment, ProductItem } from '@/types/split'
 import type { DialogPerson, EditableDetectedItem, VisionApiResponse } from './vision-types'
 
@@ -227,6 +227,7 @@ export function useVisionItems(params: UseVisionItemsParams) {
           const res = await fetch(src)
           const buf = await res.arrayBuffer()
           const { ciphertextBuffer, ivBase64 } = await encryptReceipt(buf, keyBase64)
+          vaultCiphertextCache.set(currentBillId, ciphertextBuffer)
 
           let binary = ''
           const bytes = new Uint8Array(ciphertextBuffer)
@@ -246,6 +247,7 @@ export function useVisionItems(params: UseVisionItemsParams) {
               keyBase64,
               fileName: originalName,
               mimeType: 'image/jpeg',
+              people: peopleToImport,
             }),
           })
           const upData = await upRes.json()
