@@ -53,3 +53,4 @@ describe('High-Performance User & Phone Search Suite (5 Lakh Scale Architecture)
     expect(executionTimeMs).toBe(0)
   })
 })
+

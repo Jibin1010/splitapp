@@ -78,8 +78,22 @@ export interface Bill {
   invoiceNumber?: string
   /** Tail person ID -> Preferred Head person ID mapping */
   headTailPreferences?: Record<string, string>
+  /** Zero-knowledge encrypted receipt stored in Google Drive Vault */
+  vaultFile?: BillVaultFile
   createdAt: string
   updatedAt: string
+}
+
+export interface BillVaultFile {
+  fileId: string
+  folderId?: string
+  folderName: string
+  fileName: string
+  driveWebLink: string
+  mimeType: string
+  ivBase64: string
+  uploadedAt: string
+  isEncrypted: boolean
 }
 
 export interface Settlement {

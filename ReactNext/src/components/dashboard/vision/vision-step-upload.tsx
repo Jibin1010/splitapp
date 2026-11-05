@@ -7,6 +7,8 @@ import {
   Eye,
   RotateCcw,
   Trash2,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LottieScannerAnimation } from '@/components/ui/lottie-scanner'
@@ -216,6 +218,27 @@ export function VisionStepUpload({
           </div>
         </div>
       )}
+
+      {/* Google Drive Encrypted Vault Notice */}
+      <div className="rounded-xl border border-indigo-200/90 bg-indigo-50/40 p-3 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-indigo-600" />
+            <span className="text-xs font-bold text-slate-900">Backup to Google Drive (Group Encrypted)</span>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-300 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+            <Lock className="size-2.5" />
+            AES-256 Enabled
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-600 leading-relaxed">
+          When this bill is scanned, the receipt photo is encrypted into random ciphertext before uploading to your Google Drive folder:
+          <code className="bg-white border border-indigo-200 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-900 mx-1">
+            SplitLedger Vault / [Group Name]
+          </code>.
+          Anyone who gets the Google Drive link sees only unreadable code; the secret unlock key stays strictly with verified group members.
+        </p>
+      </div>
     </div>
   )
 }

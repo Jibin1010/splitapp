@@ -59,6 +59,9 @@ export function ImageVisionDialog({
     calculate: v.calculate,
     onOpenChange,
     setImported: v.setImported,
+    imageSrc: v.imageSrc,
+    imageName: v.imageName,
+    state: v.state,
   })
 
   return (

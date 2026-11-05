@@ -24,3 +24,4 @@ ON public.identity_profiles USING gin (display_name gin_trgm_ops);
 -- Enables searching middle or ending phone digits (e.g. WHERE e164_phone LIKE '%98200%')
 CREATE INDEX IF NOT EXISTS idx_phone_whatsapp_e164_trgm 
 ON public.phone_whatsapp_identities USING gin (e164_phone gin_trgm_ops);
+

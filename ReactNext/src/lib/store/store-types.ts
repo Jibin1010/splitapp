@@ -3,6 +3,7 @@ import type {
   Adjustment,
   Allocation,
   Bill,
+  BillVaultFile,
   CalculationResult,
   CurrencyCode,
   Paise,
@@ -69,6 +70,7 @@ export type StoreAction =
   | { type: 'UPDATE_ADJUSTMENT'; adjustmentId: string; patch: Partial<Omit<Adjustment, 'id'>> }
   | { type: 'REMOVE_ADJUSTMENT'; adjustmentId: string }
   | { type: 'SET_CURRENCY'; currency: CurrencyCode }
+  | { type: 'SET_VAULT_FILE'; vaultFile?: BillVaultFile }
   | { type: 'NEW_BILL'; currency: CurrencyCode }
   | { type: 'LOAD_BILL'; bill: Bill }
   | { type: 'CALCULATE_START' }

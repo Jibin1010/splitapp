@@ -78,6 +78,18 @@ export const adjustmentSchema = z.object({
   shares: z.record(z.string(), z.number().min(0).max(100)).optional(),
 })
 
+export const billVaultFileSchema = z.object({
+  fileId: z.string(),
+  folderId: z.string().optional(),
+  folderName: z.string(),
+  fileName: z.string(),
+  driveWebLink: z.string(),
+  mimeType: z.string(),
+  ivBase64: z.string(),
+  uploadedAt: z.string(),
+  isEncrypted: z.boolean(),
+})
+
 export const billSchema = z.object({
   id: idSchema,
   name: z.string().max(200),
@@ -89,6 +101,7 @@ export const billSchema = z.object({
   date: z.string().max(100).optional(),
   invoiceNumber: z.string().max(100).optional(),
   headTailPreferences: z.record(z.string(), z.string()).optional(),
+  vaultFile: billVaultFileSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

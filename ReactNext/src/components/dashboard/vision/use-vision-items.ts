@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { newId } from '@/lib/id'
 import { getRandomAvatarForName } from '@/lib/dummy-people'
+import { generateVaultKey, encryptReceipt } from '@/lib/crypto/vault-crypto'
 import type { Adjustment, ProductItem } from '@/types/split'
 import type { DialogPerson, EditableDetectedItem, VisionApiResponse } from './vision-types'
 
@@ -23,6 +24,9 @@ interface UseVisionItemsParams {
   calculate: () => Promise<any>
   onOpenChange: (open: boolean) => void
   setImported: (imported: boolean) => void
+  imageSrc?: string | null
+  imageName?: string
+  state?: any
 }
 
 export function useVisionItems(params: UseVisionItemsParams) {
@@ -209,6 +213,50 @@ export function useVisionItems(params: UseVisionItemsParams) {
       replaceExistingItems: clearExistingBeforeImport,
       replaceExistingPeople: clearExistingBeforeImport && dialogPeople.length > 0,
     })
+
+    // Zero-knowledge encryption & backup to Google Drive Vault
+    if (params.imageSrc && params.state?.bill?.id) {
+      const currentBillId = params.state.bill.id
+      const finalBillName = billName || params.state.bill.name || 'Shared Group Bill'
+      const originalName = params.imageName || 'receipt.jpg'
+      const src = params.imageSrc
+
+      void (async () => {
+        try {
+          const keyBase64 = await generateVaultKey()
+          const res = await fetch(src)
+          const buf = await res.arrayBuffer()
+          const { ciphertextBuffer, ivBase64 } = await encryptReceipt(buf, keyBase64)
+
+          let binary = ''
+          const bytes = new Uint8Array(ciphertextBuffer)
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i])
+          }
+          const ciphertextBase64 = btoa(binary)
+
+          const upRes = await fetch('/api/vault/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              billId: currentBillId,
+              billName: finalBillName,
+              ciphertextBase64,
+              ivBase64,
+              keyBase64,
+              fileName: originalName,
+              mimeType: 'image/jpeg',
+            }),
+          })
+          const upData = await upRes.json()
+          if (upData.ok && upData.vaultFile) {
+            dispatch({ type: 'SET_VAULT_FILE', vaultFile: upData.vaultFile })
+          }
+        } catch (vaultErr) {
+          console.warn('Vault auto-upload notice:', vaultErr)
+        }
+      })()
+    }
 
     setImported(true)
     onOpenChange(false)

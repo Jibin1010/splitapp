@@ -229,6 +229,8 @@ export function reducer(state: StoreState, action: StoreAction): StoreState {
       return { ...state, bill: touch({ ...bill, adjustments: bill.adjustments.filter((adj) => adj.id !== action.adjustmentId) }) }
     case 'SET_CURRENCY':
       return { ...state, bill: touch({ ...bill, currency: action.currency }) }
+    case 'SET_VAULT_FILE':
+      return { ...state, bill: touch({ ...bill, vaultFile: action.vaultFile }) }
     case 'NEW_BILL':
       return {
         ...state,
