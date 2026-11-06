@@ -11,6 +11,12 @@ import crypto from 'node:crypto'
 import type { Bill, CurrencyCode, Person } from '@/types/split'
 import { pool } from '@/lib/supabase/db'
 import { calculateBill } from '@/lib/calculations'
+import {
+  encryptPII,
+  decryptPII,
+  encryptBillForStorage,
+  decryptBillFromStorage,
+} from '@/lib/crypto/pii-crypto'
 
 // In-memory fast cache mapped by identity_id -> active Bill
 const memoryUserBills = new Map<string, Bill>()
@@ -122,7 +128,9 @@ export async function getActiveBillForUser(
         if (res.rows.length > 0) {
           const row = res.rows[0]
           if (row.data && Array.isArray(row.data.people) && row.data.people.length > 0) {
-            const dbBill = row.data as Bill
+            const rawBill = row.data as Bill
+            // Transparently decrypt stored PII names from database
+            const dbBill = decryptBillFromStorage(rawBill)
             // Sanitize: ensure no mock people leaked
             const isMock = dbBill.people.some((p) =>
               ['Maya Sharma', 'Arjun Patel', 'Neha Rao', 'Ravi Kumar'].includes(p.name)
@@ -134,6 +142,7 @@ export async function getActiveBillForUser(
               dbBill.people.forEach((p) => {
                 members.add(p.id)
                 members.add(p.name.toLowerCase())
+                members.add(encryptPII(p.name).toLowerCase())
               })
               billMembers.set(dbBill.id, members)
               return dbBill
@@ -162,12 +171,13 @@ export async function getActiveBillForUser(
     try {
       const client = await pool.connect()
       try {
+        const encNewBill = encryptBillForStorage(newBill)
         await client.query(
           `INSERT INTO public.bills (id, owner_identity_id, title, currency, data, updated_at)
            VALUES ($1, $2, $3, $4, $5, clock_timestamp())
            ON CONFLICT (id) DO UPDATE 
            SET data = EXCLUDED.data, updated_at = clock_timestamp();`,
-          [toDbUuid(newBill.id), identityId, newBill.name, newBill.currency, JSON.stringify(newBill)]
+          [toDbUuid(newBill.id), identityId, newBill.name, newBill.currency, JSON.stringify(encNewBill)]
         )
       } finally {
         client.release()
@@ -261,6 +271,7 @@ export async function saveActiveBillForUser(
     try {
       const client = await pool.connect()
       try {
+        const encryptedBillForDb = encryptBillForStorage(updatedBill)
         await client.query(
           `INSERT INTO public.bills (id, owner_identity_id, title, currency, data, updated_at)
            VALUES ($1, $2, $3, $4, $5, clock_timestamp())
@@ -274,18 +285,19 @@ export async function saveActiveBillForUser(
             identityId,
             updatedBill.name || 'Group Split',
             updatedBill.currency,
-            JSON.stringify(updatedBill),
+            JSON.stringify(encryptedBillForDb),
           ]
         )
 
-        // Sync bill_people relational members
+        // Sync bill_people relational members with zero-knowledge encrypted names
         if (Array.isArray(updatedBill.people)) {
           for (const person of updatedBill.people) {
+            const encryptedName = encryptPII(person.name)
             await client.query(
               `INSERT INTO public.bill_people (id, bill_id, name)
                VALUES ($1, $2, $3)
                ON CONFLICT (bill_id, name) DO NOTHING;`,
-              [toDbUuid(person.id), toDbUuid(updatedBill.id), person.name]
+              [toDbUuid(person.id), toDbUuid(updatedBill.id), encryptedName]
             ).catch(() => {})
           }
         }
@@ -315,12 +327,13 @@ export async function resetActiveBillForUser(
     try {
       const client = await pool.connect()
       try {
+        const encCleanBill = encryptBillForStorage(cleanBill)
         await client.query(
           `INSERT INTO public.bills (id, owner_identity_id, title, currency, data, updated_at)
            VALUES ($1, $2, $3, $4, $5, clock_timestamp())
            ON CONFLICT (id) DO UPDATE 
            SET data = EXCLUDED.data, updated_at = clock_timestamp();`,
-          [toDbUuid(cleanBill.id), identityId, cleanBill.name, cleanBill.currency, JSON.stringify(cleanBill)]
+          [toDbUuid(cleanBill.id), identityId, cleanBill.name, cleanBill.currency, JSON.stringify(encCleanBill)]
         )
       } finally {
         client.release()

@@ -14,6 +14,7 @@ import path from 'path'
 import fs from 'fs'
 import { pool } from '@/lib/supabase/db'
 import { toDbUuid } from '@/lib/cloud-bill/bill-repository'
+import { encryptPII, decryptPII } from '@/lib/crypto/pii-crypto'
 import type { BillVaultFile } from '@/types/split'
 
 // In-memory fallback caches for dev/test/offline environments
@@ -235,7 +236,12 @@ export async function saveGroupVaultKey(params: {
   if (params.userIdentityId) memberList.push(params.userIdentityId)
   if (Array.isArray(params.members)) {
     params.members.forEach((m) => {
-      if (m.name) memberList.push(m.name.trim().toLowerCase())
+      if (m.name) {
+        const trimmed = m.name.trim()
+        memberList.push(trimmed.toLowerCase())
+        memberList.push(encryptPII(trimmed).toLowerCase())
+        memberList.push(decryptPII(trimmed).toLowerCase())
+      }
       if (m.id) memberList.push(m.id)
       if (m.identityId) memberList.push(m.identityId)
     })
@@ -266,11 +272,12 @@ export async function saveGroupVaultKey(params: {
         if (Array.isArray(params.members) && params.members.length > 0) {
           for (const person of params.members) {
             if (!person.name) continue
+            const encryptedName = encryptPII(person.name.trim())
             await client.query(
               `INSERT INTO public.bill_people (id, bill_id, name)
                VALUES ($1, $2, $3)
                ON CONFLICT (bill_id, name) DO NOTHING;`,
-              [toDbUuid(person.id || person.name), cleanBillId, person.name.trim()]
+              [toDbUuid(person.id || person.name), cleanBillId, encryptedName]
             ).catch(() => {})
           }
         }
@@ -324,11 +331,19 @@ export async function getGroupVaultKey(params: {
 
           const data = billRes.rows[0].data
           if (!authorized && data && Array.isArray(data.people)) {
-            const isMember = data.people.some(
-              (p: any) =>
+            const reqLower = requestingUserName ? requestingUserName.trim().toLowerCase() : ''
+            const isMember = data.people.some((p: any) => {
+              const rawName = p.name || ''
+              const decName = decryptPII(rawName).toLowerCase()
+              return (
                 (requestingIdentityId && (p.id === requestingIdentityId || p.identityId === requestingIdentityId)) ||
-                (requestingUserName && p.name.toLowerCase() === requestingUserName.toLowerCase())
-            )
+                (reqLower && (
+                  decName === reqLower ||
+                  rawName.toLowerCase() === reqLower ||
+                  rawName === encryptPII(reqLower)
+                ))
+              )
+            })
             if (isMember) authorized = true
           }
         }
@@ -340,10 +355,19 @@ export async function getGroupVaultKey(params: {
             [cleanBillId]
           )
           if (peopleRes.rows.length > 0) {
-            const isMember = peopleRes.rows.some((r: any) =>
-              (requestingUserName && r.name.toLowerCase() === requestingUserName.toLowerCase()) ||
-              (requestingIdentityId && (r.id === requestingIdentityId || r.identity_id === requestingIdentityId))
-            )
+            const reqLower = requestingUserName ? requestingUserName.trim().toLowerCase() : ''
+            const isMember = peopleRes.rows.some((r: any) => {
+              const rawName = r.name || ''
+              const decName = decryptPII(rawName).toLowerCase()
+              return (
+                (reqLower && (
+                  decName === reqLower ||
+                  rawName.toLowerCase() === reqLower ||
+                  rawName === encryptPII(reqLower)
+                )) ||
+                (requestingIdentityId && (r.id === requestingIdentityId || r.identity_id === requestingIdentityId))
+              )
+            })
             if (isMember) authorized = true
           }
         }
@@ -372,7 +396,10 @@ export async function getGroupVaultKey(params: {
     if (mem.members && mem.members.length > 0) {
       const isMember = mem.members.some(
         (m) =>
-          (requestingUserName && m.toLowerCase() === requestingUserName.toLowerCase()) ||
+          (requestingUserName && (
+            m.toLowerCase() === requestingUserName.toLowerCase() ||
+            decryptPII(m).toLowerCase() === requestingUserName.toLowerCase()
+          )) ||
           (requestingIdentityId && m === requestingIdentityId)
       )
       if (isMember) authorized = true

@@ -13,6 +13,8 @@ import {
   processPhoneVerificationComparison,
 } from '@/lib/supabase/db'
 
+const isTestEnv = process.env.NODE_ENV === 'test' && !process.env.TEST_WITH_LIVE_DB
+
 export type ChallengeStatus =
   | 'PENDING'
   | 'VERIFIED'
@@ -89,18 +91,20 @@ export const VerificationRepository = {
     challenges.set(challenge.id, { ...challenge })
 
     // 2. Persist to Supabase DB (non-blocking / resilient to network)
-    try {
-      await createPhoneVerificationChallenge({
-        challengeId: challenge.id,
-        tokenHash: challenge.tokenHash,
-        claimedPhone: challenge.phoneNumber,
-        claimedE164: challenge.claimedE164 || challenge.phoneNumber,
-        channel: challenge.channel || 'whatsapp',
-        expiresAt: challenge.expiresAt,
-        identityId: challenge.identityId || challenge.userId || undefined,
-      })
-    } catch (err) {
-      console.warn('Database save warning (using memory storage):', (err as any)?.message)
+    if (!isTestEnv) {
+      try {
+        await createPhoneVerificationChallenge({
+          challengeId: challenge.id,
+          tokenHash: challenge.tokenHash,
+          claimedPhone: challenge.phoneNumber,
+          claimedE164: challenge.claimedE164 || challenge.phoneNumber,
+          channel: challenge.channel || 'whatsapp',
+          expiresAt: challenge.expiresAt,
+          identityId: challenge.identityId || challenge.userId || undefined,
+        })
+      } catch (err) {
+        console.warn('Database save warning (using memory storage):', (err as any)?.message)
+      }
     }
 
     return challenge
@@ -108,33 +112,35 @@ export const VerificationRepository = {
 
   async findChallengeById(id: string): Promise<VerificationChallengeEntity | null> {
     // Check Supabase database first
-    try {
-      const dbRow = await getPhoneVerificationChallenge(id)
-      if (dbRow) {
-        const entity: VerificationChallengeEntity = {
-          id: dbRow.challenge_id,
-          userId: dbRow.identity_id || null,
-          phoneNumber: dbRow.claimed_phone_e164 || dbRow.claimed_phone_number,
-          claimedE164: dbRow.claimed_phone_e164,
-          actualSenderPhone: dbRow.actual_sender_number || null,
-          actualSenderE164: dbRow.actual_sender_e164 || null,
-          numbersMatch: dbRow.numbers_match,
-          channel: dbRow.channel as 'whatsapp' | 'telegram' | 'sms',
-          telegramUserId: dbRow.telegram_user_id ? Number(dbRow.telegram_user_id) : null,
-          telegramUsername: dbRow.telegram_username || null,
-          tokenHash: dbRow.token_hash,
-          status: dbRow.verification_status as ChallengeStatus,
-          expiresAt: new Date(dbRow.expires_at),
-          attempts: dbRow.attempts_count || 0,
-          verifiedAt: dbRow.verified_at ? new Date(dbRow.verified_at) : null,
-          createdAt: new Date(dbRow.created_at),
-          identityId: dbRow.identity_id || null,
+    if (!isTestEnv) {
+      try {
+        const dbRow = await getPhoneVerificationChallenge(id)
+        if (dbRow) {
+          const entity: VerificationChallengeEntity = {
+            id: dbRow.challenge_id,
+            userId: dbRow.identity_id || null,
+            phoneNumber: dbRow.claimed_phone_e164 || dbRow.claimed_phone_number,
+            claimedE164: dbRow.claimed_phone_e164,
+            actualSenderPhone: dbRow.actual_sender_number || null,
+            actualSenderE164: dbRow.actual_sender_e164 || null,
+            numbersMatch: dbRow.numbers_match,
+            channel: dbRow.channel as 'whatsapp' | 'telegram' | 'sms',
+            telegramUserId: dbRow.telegram_user_id ? Number(dbRow.telegram_user_id) : null,
+            telegramUsername: dbRow.telegram_username || null,
+            tokenHash: dbRow.token_hash,
+            status: dbRow.verification_status as ChallengeStatus,
+            expiresAt: new Date(dbRow.expires_at),
+            attempts: dbRow.attempts_count || 0,
+            verifiedAt: dbRow.verified_at ? new Date(dbRow.verified_at) : null,
+            createdAt: new Date(dbRow.created_at),
+            identityId: dbRow.identity_id || null,
+          }
+          challenges.set(id, entity)
+          return entity
         }
-        challenges.set(id, entity)
-        return entity
+      } catch {
+        // Fallback to memory
       }
-    } catch {
-      // Fallback to memory
     }
 
     const found = challenges.get(id)
@@ -160,41 +166,47 @@ export const VerificationRepository = {
       challenges.set(challengeId, memoryItem)
     }
 
-    try {
-      await associateTelegramUserWithChallenge({
-        challengeId,
-        telegramUserId,
-        telegramUsername,
-      })
-      return true
-    } catch {
-      return Boolean(memoryItem)
+    if (!isTestEnv) {
+      try {
+        await associateTelegramUserWithChallenge({
+          challengeId,
+          telegramUserId,
+          telegramUsername,
+        })
+        return true
+      } catch {
+        return Boolean(memoryItem)
+      }
     }
+
+    return Boolean(memoryItem)
   },
 
   async findPendingChallengeByTelegramUser(telegramUserId: number): Promise<VerificationChallengeEntity | null> {
-    try {
-      const dbRow = await getLatestPendingChallengeByTelegramUser(telegramUserId)
-      if (dbRow) {
-        return {
-          id: dbRow.challenge_id,
-          userId: dbRow.identity_id || null,
-          phoneNumber: dbRow.claimed_phone_e164,
-          claimedE164: dbRow.claimed_phone_e164,
-          channel: dbRow.channel as 'whatsapp' | 'telegram' | 'sms',
-          telegramUserId: Number(dbRow.telegram_user_id),
-          telegramUsername: dbRow.telegram_username,
-          tokenHash: dbRow.token_hash,
-          status: dbRow.verification_status as ChallengeStatus,
-          expiresAt: new Date(dbRow.expires_at),
-          attempts: dbRow.attempts_count || 0,
-          verifiedAt: dbRow.verified_at ? new Date(dbRow.verified_at) : null,
-          createdAt: new Date(dbRow.created_at),
-          identityId: dbRow.identity_id || null,
+    if (!isTestEnv) {
+      try {
+        const dbRow = await getLatestPendingChallengeByTelegramUser(telegramUserId)
+        if (dbRow) {
+          return {
+            id: dbRow.challenge_id,
+            userId: dbRow.identity_id || null,
+            phoneNumber: dbRow.claimed_phone_e164,
+            claimedE164: dbRow.claimed_phone_e164,
+            channel: dbRow.channel as 'whatsapp' | 'telegram' | 'sms',
+            telegramUserId: Number(dbRow.telegram_user_id),
+            telegramUsername: dbRow.telegram_username,
+            tokenHash: dbRow.token_hash,
+            status: dbRow.verification_status as ChallengeStatus,
+            expiresAt: new Date(dbRow.expires_at),
+            attempts: dbRow.attempts_count || 0,
+            verifiedAt: dbRow.verified_at ? new Date(dbRow.verified_at) : null,
+            createdAt: new Date(dbRow.created_at),
+            identityId: dbRow.identity_id || null,
+          }
         }
+      } catch {
+        // Memory fallback
       }
-    } catch {
-      // Memory fallback
     }
 
     const now = new Date()
@@ -229,37 +241,39 @@ export const VerificationRepository = {
     identityId?: string | null
   }> {
     // 1. Try Supabase comparison engine
-    try {
-      const dbRes = await processPhoneVerificationComparison(params)
-      if (dbRes && dbRes.matches !== undefined) {
-        const isMatch = Boolean(dbRes.matches)
-        const currentAttempts = dbRes.attempts ?? 0
+    if (!isTestEnv) {
+      try {
+        const dbRes = await processPhoneVerificationComparison(params)
+        if (dbRes && dbRes.matches !== undefined) {
+          const isMatch = Boolean(dbRes.matches)
+          const currentAttempts = dbRes.attempts ?? 0
 
-        // Sync back into memory
-        const c = challenges.get(params.challengeId)
-        if (c) {
-          c.actualSenderPhone = params.actualSenderPhone
-          c.actualSenderE164 = params.actualSenderE164
-          c.numbersMatch = isMatch
-          c.attempts = currentAttempts
-          c.status = (dbRes.status as ChallengeStatus) || (isMatch ? 'VERIFIED' : 'MISMATCH_REJECTED')
-          if (isMatch) c.verifiedAt = new Date()
-          if (dbRes.identityId) c.identityId = dbRes.identityId
-          challenges.set(params.challengeId, c)
-        }
+          // Sync back into memory
+          const c = challenges.get(params.challengeId)
+          if (c) {
+            c.actualSenderPhone = params.actualSenderPhone
+            c.actualSenderE164 = params.actualSenderE164
+            c.numbersMatch = isMatch
+            c.attempts = currentAttempts
+            c.status = (dbRes.status as ChallengeStatus) || (isMatch ? 'VERIFIED' : 'MISMATCH_REJECTED')
+            if (isMatch) c.verifiedAt = new Date()
+            if (dbRes.identityId) c.identityId = dbRes.identityId
+            challenges.set(params.challengeId, c)
+          }
 
-        return {
-          success: isMatch,
-          matches: isMatch,
-          status: (dbRes.status as ChallengeStatus) || (isMatch ? 'VERIFIED' : 'MISMATCH_REJECTED'),
-          attempts: currentAttempts,
-          claimedE164: dbRes.claimedE164,
-          actualE164: dbRes.actualE164 || params.actualSenderE164,
-          identityId: dbRes.identityId,
+          return {
+            success: isMatch,
+            matches: isMatch,
+            status: (dbRes.status as ChallengeStatus) || (isMatch ? 'VERIFIED' : 'MISMATCH_REJECTED'),
+            attempts: currentAttempts,
+            claimedE164: dbRes.claimedE164,
+            actualE164: dbRes.actualE164 || params.actualSenderE164,
+            identityId: dbRes.identityId,
+          }
         }
+      } catch {
+        // Fall through to memory logic
       }
-    } catch {
-      // Fall through to memory logic
     }
 
     // 2. Memory engine fallback

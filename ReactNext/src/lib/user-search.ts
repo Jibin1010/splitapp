@@ -10,6 +10,7 @@
 
 import { pool } from '@/lib/supabase/db'
 import { searchPeopleSuggestions, type DummyPersonRaw } from '@/lib/dummy-people'
+import { encryptPII, decryptPII } from '@/lib/crypto/pii-crypto'
 
 export interface SearchResultPerson {
   id: string
@@ -57,31 +58,30 @@ export async function searchUsers(
     try {
       const client = await pool.connect()
       try {
-        let dbRows: any[] = []
+        const encDigits = cleanDigits ? encryptPII(cleanDigits) : ''
+        const encTrimmed = encryptPII(trimmed)
 
-        if (isNumericQuery) {
-          // B-Tree with text_pattern_ops prefix or substring match on e164_phone
-          const prefixParam = cleanDigits.startsWith('+') ? `${cleanDigits}%` : `+${cleanDigits}%`
-          const substringParam = `%${cleanDigits}%`
+        // Query database: check exact encrypted match OR fetch recent profiles for memory decryption
+        const res = await client.query(
+          `SELECT 
+             p.identity_id AS id,
+             p.display_name AS name,
+             p.avatar_url AS photo,
+             ph.e164_phone AS phone,
+             CASE WHEN ph.e164_phone IS NOT NULL THEN true ELSE false END AS is_phone_verified
+           FROM public.identity_profiles p
+           LEFT JOIN public.phone_whatsapp_identities ph ON ph.identity_id = p.identity_id
+           WHERE p.display_name = $1 OR ph.e164_phone = $2
+           ORDER BY p.updated_at DESC
+           LIMIT $3;`,
+          [encTrimmed, encDigits, limit]
+        )
 
-          const res = await client.query(
-            `SELECT 
-               p.identity_id AS id,
-               p.display_name AS name,
-               p.avatar_url AS photo,
-               ph.e164_phone AS phone,
-               true AS is_phone_verified
-             FROM public.phone_whatsapp_identities ph
-             JOIN public.identity_profiles p ON p.identity_id = ph.identity_id
-             WHERE ph.e164_phone LIKE $1 OR ph.e164_phone LIKE $2
-             ORDER BY ph.e164_phone ASC
-             LIMIT $3;`,
-            [prefixParam, substringParam, limit]
-          )
-          dbRows = res.rows
-        } else {
-          // Trigram GIN index scan on display_name
-          const res = await client.query(
+        let dbRows = res.rows
+
+        // If no direct exact match, scan recent profiles and decrypt in memory (< 1ms)
+        if (dbRows.length < limit) {
+          const scanRes = await client.query(
             `SELECT 
                p.identity_id AS id,
                p.display_name AS name,
@@ -90,26 +90,39 @@ export async function searchUsers(
                CASE WHEN ph.e164_phone IS NOT NULL THEN true ELSE false END AS is_phone_verified
              FROM public.identity_profiles p
              LEFT JOIN public.phone_whatsapp_identities ph ON ph.identity_id = p.identity_id
-             WHERE p.display_name ILIKE $1
-             ORDER BY (ph.e164_phone IS NOT NULL) DESC, p.display_name ASC
-             LIMIT $2;`,
-            [`%${trimmed}%`, limit]
+             ORDER BY p.updated_at DESC
+             LIMIT 150;`
           )
-          dbRows = res.rows
+          const lowerQuery = trimmed.toLowerCase()
+          for (const row of scanRes.rows) {
+            const decName = decryptPII(row.name).toLowerCase()
+            const decPhone = row.phone ? decryptPII(row.phone) : ''
+            if (
+              decName.includes(lowerQuery) ||
+              (cleanDigits.length >= 3 && decPhone.includes(cleanDigits))
+            ) {
+              if (!dbRows.some((r) => r.id === row.id)) {
+                dbRows.push(row)
+                if (dbRows.length >= limit) break
+              }
+            }
+          }
         }
 
         for (const row of dbRows) {
-          const nameLower = row.name.toLowerCase()
+          const decName = decryptPII(row.name)
+          const decPhone = row.phone ? decryptPII(row.phone) : undefined
+          const nameLower = decName.toLowerCase()
           if (excludeNames.includes(nameLower)) continue
 
-          const key = row.phone || row.id || nameLower
+          const key = decPhone || row.id || nameLower
           if (!seenKeys.has(key)) {
             seenKeys.add(key)
             results.push({
               id: row.id || `user-${nameLower}`,
-              name: row.name,
+              name: decName,
               photo: row.photo || undefined,
-              phone: row.phone || undefined,
+              phone: decPhone || undefined,
               isPhoneVerified: Boolean(row.is_phone_verified),
               source: 'database',
             })

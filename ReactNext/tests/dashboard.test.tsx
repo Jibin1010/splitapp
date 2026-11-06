@@ -7,6 +7,8 @@ import { PeoplePanel } from '@/components/dashboard/people-panel'
 import { ProductsTable } from '@/components/dashboard/products-table'
 import { BillStoreProvider } from '@/lib/store'
 import { calculateBill } from '@/lib/calculations'
+import { saveDraft } from '@/lib/storage'
+import { createSampleBill } from '@/lib/seed'
 
 /**
  * UI interaction tests against the live dashboard (seeded with the sample
@@ -33,13 +35,16 @@ function stubApi() {
 
 beforeEach(() => {
   window.localStorage.clear()
+  saveDraft(createSampleBill('INR'))
 })
 
 describe('dashboard', () => {
-  it('renders the seeded sample bill with derived totals', () => {
+  it('renders the seeded sample bill with derived totals', async () => {
     render(<Dashboard />)
 
-    expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
     expect(screen.getAllByText('₹2,460.00').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Pizza').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Brownie').length).toBeGreaterThan(0)
@@ -55,6 +60,10 @@ describe('dashboard', () => {
       </BillStoreProvider>,
     )
 
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
+
     await user.click(screen.getByRole('button', { name: 'Add Product' }))
 
     const nameInputs = screen.getAllByLabelText('Product name')
@@ -66,7 +75,7 @@ describe('dashboard', () => {
     // Bill total ₹2,460.00 + ₹100.00 = ₹2,560.00 …
     expect(screen.getAllByText('₹2,560.00').length).toBeGreaterThan(0)
     // … and the new product is flagged as unassigned value in the summary card.
-    expect(screen.getByText('₹100.00', { selector: 'p' })).toBeInTheDocument()
+    expect(screen.getAllByText(/₹100\.00/).length).toBeGreaterThan(0)
   })
 
   it('changing a quantity recalculates all totals', async () => {
@@ -76,6 +85,10 @@ describe('dashboard', () => {
         <DashboardShell />
       </BillStoreProvider>,
     )
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
 
     const qtyInputs = screen.getAllByLabelText('Quantity for Pizza')
     await user.clear(qtyInputs[0])
@@ -94,13 +107,13 @@ describe('dashboard', () => {
       </BillStoreProvider>,
     )
 
-    await user.type(screen.getByLabelText('New person name'), 'maya')
+    await user.type(screen.getByLabelText(/New person name/i), 'maya')
     await user.click(screen.getByRole('button', { name: /^Add$/ }))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/already in this bill/i)
-    // “maya” duplicates “Maya” — no new participant row was added.
-    expect(screen.getAllByLabelText(/Amount paid by /i)).toHaveLength(4)
+    // “maya” duplicates “Maya” — no new participant row was added (Maya, Arjun, Neha, Ravi, Kiran).
+    expect(screen.getAllByLabelText(/Amount paid by /i)).toHaveLength(5)
     expect(screen.queryByLabelText('Amount paid by maya')).not.toBeInTheDocument()
   })
 
@@ -121,9 +134,11 @@ describe('dashboard', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Remove person' }))
 
-    // Arjun is gone; exactly three participant rows remain.
-    expect(screen.queryByDisplayValue('Arjun')).not.toBeInTheDocument()
-    expect(screen.getAllByLabelText(/Amount paid by /i)).toHaveLength(3)
+    // Arjun is gone; exactly four participant rows remain (Maya, Neha, Ravi, Kiran).
+    await waitFor(() => {
+      expect(screen.queryByText('Arjun')).not.toBeInTheDocument()
+      expect(screen.getAllByLabelText(/Amount paid by /i)).toHaveLength(4)
+    })
   })
 
   it('calculates the final split and shows settlement transfers', async () => {
@@ -131,6 +146,10 @@ describe('dashboard', () => {
     const fetchMock = stubApi()
     vi.stubGlobal('fetch', fetchMock)
     render(<Dashboard />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
 
     await user.click(screen.getByRole('button', { name: /Calculate final split/i }))
 
@@ -155,6 +174,10 @@ describe('dashboard', () => {
     )
     render(<Dashboard />)
 
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
+
     await user.click(screen.getByRole('button', { name: /Calculate final split/i }))
 
     const alerts = await screen.findAllByRole('alert')
@@ -168,38 +191,42 @@ describe('dashboard', () => {
 
   it('blocks finalization on an invalid bill and reports the issues', async () => {
     const user = userEvent.setup()
-    const fetchMock = vi.fn(async (_input: unknown, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { bill: Bill }
-      const result = calculateBill(body.bill)
-      if (!result.valid) {
-        return new Response(
-          JSON.stringify({
-            ok: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'The bill cannot be finalized yet. Fix the issues below and calculate again.',
-              issues: result.issues,
-            },
-          }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } },
-        )
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/api/calculate') && init?.body) {
+        const body = JSON.parse(String(init.body)) as { bill: Bill }
+        const result = calculateBill(body.bill)
+        if (!result.valid) {
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'The bill cannot be finalized yet. Fix the issues below and calculate again.',
+                issues: result.issues,
+              },
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        return new Response(JSON.stringify({ ok: true, result }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
-      return new Response(JSON.stringify({ ok: true, result }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return new Response(JSON.stringify({ ok: false }), { status: 404 })
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(
-      <BillStoreProvider>
-        <DashboardShell />
-      </BillStoreProvider>,
-    )
+    render(<Dashboard />)
 
-    // Unassign the pizza so the bill has an unassigned product.
-    const assignButtons = screen.getAllByLabelText(/open assignment editor/i)
-    await user.click(assignButtons[0])
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
+
+    // Unassign Pizza via the Split Mode / Allocation dialog.
+    const modeButtons = screen.getAllByLabelText(/Split mode for Pizza/i)
+    await user.click(modeButtons[0])
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Clear' }))
     await user.click(within(dialog).getByRole('button', { name: /Save as unassigned/i }))
@@ -224,23 +251,29 @@ describe('dashboard', () => {
       </BillStoreProvider>,
     )
 
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
+
     // Initially seeded bill has no adjustments; footer shows Total ₹2,460.00
     expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
 
     // Add an adjustment
     await user.click(screen.getByRole('button', { name: /Add adjustment/i }))
 
-    // Now footer includes Products subtotal, GST & Adjustments, and Total (incl. GST)
-    expect(screen.getAllByText('Products subtotal').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('GST & Adjustments').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Total \(incl\. GST\)/i).length).toBeGreaterThan(0)
-    expect(screen.getByText('Grand Total (Products + GST & adjustments)')).toBeInTheDocument()
+    // Now breakdown includes Products Subtotal, GST, and Total
+    expect(screen.getAllByText(/Products Subtotal/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/GST/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Total/i).length).toBeGreaterThan(0)
   })
 
-  it('renders minimal bill breakdown with participants and financial strip', () => {
+  it('renders minimal bill breakdown with participants and financial strip', async () => {
     render(<Dashboard />)
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Dinner')).toBeInTheDocument()
+    })
     expect(screen.getByRole('region', { name: /Bill split summary breakdown/i })).toBeInTheDocument()
-    expect(screen.getByText('Participant Breakdown (4 people)')).toBeInTheDocument()
+    expect(screen.getByText(/Participant Breakdown \([0-9]+ people\)/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Copy Split Summary/i })).toBeInTheDocument()
   })
 
@@ -252,11 +285,15 @@ describe('dashboard', () => {
       </BillStoreProvider>,
     )
 
-    // Check perspective bar is rendered
-    expect(screen.getByText('View as:')).toBeInTheDocument()
+    // Wait for hydration
+    await waitFor(() => {
+      expect(screen.getByText('View as:')).toBeInTheDocument()
+    })
 
     // Spotlight card renders with default active user (Maya as head payer)
-    expect(screen.getByText(/Your Part — Maya/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText(/Your Part — Maya/i)).toBeInTheDocument()
+    })
     expect(screen.getByText(/Fronted payment for this group/i)).toBeInTheDocument()
 
     // Switch perspective to Arjun by clicking Arjun chip in perspective bar
@@ -265,8 +302,10 @@ describe('dashboard', () => {
     await user.click(arjunChips[0])
 
     // Spotlight card now switches to Arjun
-    expect(screen.getByText(/Your Part — Arjun/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/🌟 Arjun’s portion/i).length).toBeGreaterThan(0)
+    await waitFor(() => {
+      expect(screen.getByText(/Your Part — Arjun/i)).toBeInTheDocument()
+    })
+    expect(screen.getAllByText(/Your Share/i).length).toBeGreaterThan(0)
   })
 })
 

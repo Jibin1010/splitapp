@@ -2,6 +2,7 @@ import { Pool } from 'pg'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { encryptPII, decryptPII } from '@/lib/crypto/pii-crypto'
 
 if (!process.env.DATABASE_URL) {
   try {
@@ -44,7 +45,7 @@ export const pool = new Pool({
   ssl: isLocalhost ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: isTestEnv ? 250 : 5000,
+  connectionTimeoutMillis: 10000,
 })
 
 // Cryptographic Password Hashing (PBKDF2-SHA256 with 100,000 iterations)
@@ -72,14 +73,25 @@ export async function authenticateGoogleUser(params: {
 }) {
   const client = await pool.connect()
   try {
+    const encEmail = encryptPII(params.email.toLowerCase().trim())
+    const encName = encryptPII(params.name || '')
+    // Sanitize rawProfile so no open email or name is leaked into JSONB
+    const sanitizedProfile = params.rawProfile
+      ? {
+          ...params.rawProfile,
+          email: encEmail,
+          name: encName,
+        }
+      : {}
+
     const res = await client.query(
       `SELECT * FROM public.cloud_authenticate_google($1, $2, $3, $4, $5, $6);`,
       [
         params.googleSub,
-        params.email.toLowerCase().trim(),
-        params.name || '',
+        encEmail,
+        encName,
         params.avatarUrl || null,
-        JSON.stringify(params.rawProfile || {}),
+        JSON.stringify(sanitizedProfile),
         params.currentIdentityId || null,
       ]
     )
@@ -87,8 +99,8 @@ export async function authenticateGoogleUser(params: {
     const row = res.rows[0]
     return {
       identityId: row.identity_id,
-      displayName: row.display_name,
-      email: row.email,
+      displayName: decryptPII(row.display_name),
+      email: decryptPII(row.email),
       avatarUrl: row.avatar_url,
       isNewUser: row.is_new_user,
       isLinked: row.is_linked,
@@ -115,6 +127,7 @@ export async function checkPhoneAttachmentStatus(params: {
   existingUserPhone?: string
 }> {
   const cleanPhone = params.phone.replace(/[^0-9+]/g, '')
+  const encPhone = encryptPII(cleanPhone)
   const client = await pool.connect()
   try {
     // 1. If user is logged in, check if their current account already has a phone attached
@@ -124,7 +137,8 @@ export async function checkPhoneAttachmentStatus(params: {
         [params.currentIdentityId]
       )
       if (userPhoneRes.rows.length > 0) {
-        const existing = userPhoneRes.rows[0].e164_phone
+        const existingEnc = userPhoneRes.rows[0].e164_phone
+        const existing = decryptPII(existingEnc)
         if (existing && existing !== cleanPhone) {
           return {
             allowed: false,
@@ -148,9 +162,9 @@ export async function checkPhoneAttachmentStatus(params: {
        JOIN public.app_identities i ON i.id = p.identity_id
        LEFT JOIN public.local_credentials lc ON lc.identity_id = i.id
        LEFT JOIN public.google_oauth_accounts g ON g.identity_id = i.id
-       WHERE p.e164_phone = $1
+       WHERE p.e164_phone = $1 OR p.e164_phone = $2
        LIMIT 1;`,
-      [cleanPhone]
+      [encPhone, cleanPhone]
     )
 
     if (phoneRes.rows.length > 0) {
@@ -169,7 +183,7 @@ export async function checkPhoneAttachmentStatus(params: {
 
       // Case B: User is NOT logged in and trying to log in with phone, but this phone is bound to a primary Google/Email account
       if (!params.currentIdentityId) {
-        const primaryEmail = row.google_email || row.local_email
+        const primaryEmail = decryptPII(row.google_email || row.local_email)
         if (primaryEmail) {
           const provider = row.google_email ? 'Google' : 'Email'
           return {
@@ -206,7 +220,7 @@ export async function unlinkPhoneIdentity(identityId: string) {
       [identityId]
     )
 
-    const unlinkedPhone = res.rows[0]?.e164_phone || null
+    const unlinkedPhone = decryptPII(res.rows[0]?.e164_phone) || null
     return {
       success: true,
       unlinkedPhone,
@@ -229,16 +243,18 @@ export async function linkPhoneIdentity(params: {
     throw new Error(check.error || 'Phone attachment check failed')
   }
 
+  const cleanPhone = params.phone.trim()
+  const encPhone = encryptPII(cleanPhone)
   const client = await pool.connect()
   try {
     const res = await client.query(
       `SELECT * FROM public.cloud_link_phone_identity($1, $2);`,
-      [params.phone.trim(), params.targetIdentityId || null]
+      [encPhone, params.targetIdentityId || null]
     )
     const row = res.rows[0]
     return {
       identityId: row?.identity_id,
-      phoneNumber: row?.phone_number,
+      phoneNumber: decryptPII(row?.phone_number) || cleanPhone,
       isLinked: row?.is_linked,
       isMerged: row?.is_merged,
     }
@@ -257,7 +273,22 @@ export async function getUnifiedIdentity(identityId: string) {
       `SELECT public.cloud_get_unified_identity($1) AS unified;`,
       [identityId]
     )
-    return res.rows[0]?.unified || null
+    const unified = res.rows[0]?.unified || null
+    if (unified) {
+      if (unified.profile?.displayName) {
+        unified.profile.displayName = decryptPII(unified.profile.displayName)
+      }
+      if (unified.credentials?.email) {
+        unified.credentials.email = decryptPII(unified.credentials.email)
+      }
+      if (unified.google?.email) {
+        unified.google.email = decryptPII(unified.google.email)
+      }
+      if (unified.phone?.e164Phone) {
+        unified.phone.e164Phone = decryptPII(unified.phone.e164Phone)
+      }
+    }
+    return unified
   } finally {
     client.release()
   }
@@ -276,12 +307,14 @@ export async function registerLocalUser(params: {
   const client = await pool.connect()
   try {
     const { hash, salt } = hashPassword(params.password)
+    const encEmail = encryptPII(params.email.toLowerCase().trim())
+    const encDisplayName = encryptPII(params.displayName || params.username)
     const res = await client.query(
       `SELECT * FROM public.cloud_register_local($1, $2, $3, $4, $5, $6);`,
       [
         params.username.toLowerCase().trim(),
-        params.email.toLowerCase().trim(),
-        params.displayName || params.username,
+        encEmail,
+        encDisplayName,
         hash,
         salt,
         params.targetIdentityId || null,
@@ -292,8 +325,8 @@ export async function registerLocalUser(params: {
     return {
       identityId: row?.identity_id,
       username: row?.username,
-      email: row?.email,
-      displayName: row?.display_name,
+      email: decryptPII(row?.email),
+      displayName: decryptPII(row?.display_name),
       isNewUser: row?.is_new_user,
       isLinked: row?.is_linked,
     }
@@ -309,6 +342,7 @@ export async function loginLocalUser(identifier: string, candidatePass: string) 
   const client = await pool.connect()
   try {
     const cleanId = identifier.toLowerCase().trim()
+    const encCleanId = encryptPII(cleanId)
     const res = await client.query(
       `SELECT 
         c.identity_id,
@@ -322,8 +356,8 @@ export async function loginLocalUser(identifier: string, candidatePass: string) 
         p.avatar_url
        FROM public.local_credentials c
        JOIN public.identity_profiles p ON p.identity_id = c.identity_id
-       WHERE c.username = $1 OR c.email = $1;`,
-      [cleanId]
+       WHERE c.username = $1 OR c.email = $1 OR c.email = $2;`,
+      [cleanId, encCleanId]
     )
 
     if (res.rows.length === 0) {
@@ -376,8 +410,8 @@ export async function loginLocalUser(identifier: string, candidatePass: string) 
       identity: {
         id: row.identity_id,
         username: row.username,
-        email: row.email,
-        displayName: row.display_name,
+        email: decryptPII(row.email),
+        displayName: decryptPII(row.display_name),
         avatarUrl: row.avatar_url,
       },
     }
@@ -443,10 +477,10 @@ export async function verifyCloudSession(rawToken: string) {
     return {
       sessionId: row.session_id,
       identityId: row.identity_id,
-      displayName: row.display_name,
+      displayName: decryptPII(row.display_name),
       avatarUrl: row.avatar_url,
       username: row.username,
-      email: row.local_email || row.google_email,
+      email: decryptPII(row.local_email || row.google_email),
     }
   } finally {
     client.release()
@@ -487,6 +521,8 @@ export async function createPhoneVerificationChallenge(params: {
 }) {
   const client = await pool.connect()
   try {
+    const encClaimed = encryptPII(params.claimedPhone)
+    const encClaimedE164 = encryptPII(params.claimedE164)
     const res = await client.query(
       `INSERT INTO public.phone_verification_challenges (
         challenge_id, token_hash, claimed_phone_number, claimed_phone_e164,
@@ -496,8 +532,8 @@ export async function createPhoneVerificationChallenge(params: {
       [
         params.challengeId,
         params.tokenHash,
-        params.claimedPhone,
-        params.claimedE164,
+        encClaimed,
+        encClaimedE164,
         params.channel,
         params.expiresAt,
         params.clientIp || null,
@@ -505,7 +541,12 @@ export async function createPhoneVerificationChallenge(params: {
         params.identityId || null,
       ]
     )
-    return res.rows[0]
+    const row = res.rows[0]
+    return {
+      ...row,
+      claimed_phone_number: decryptPII(row.claimed_phone_number),
+      claimed_phone_e164: decryptPII(row.claimed_phone_e164),
+    }
   } finally {
     client.release()
   }
@@ -518,7 +559,15 @@ export async function getPhoneVerificationChallenge(challengeId: string) {
       `SELECT * FROM public.phone_verification_challenges WHERE challenge_id = $1 LIMIT 1;`,
       [challengeId]
     )
-    return res.rows[0] || null
+    const row = res.rows[0] || null
+    if (!row) return null
+    return {
+      ...row,
+      claimed_phone_number: decryptPII(row.claimed_phone_number),
+      claimed_phone_e164: decryptPII(row.claimed_phone_e164),
+      actual_sender_number: decryptPII(row.actual_sender_number),
+      actual_sender_e164: decryptPII(row.actual_sender_e164),
+    }
   } finally {
     client.release()
   }
@@ -537,7 +586,15 @@ export async function getLatestPendingChallengeByTelegramUser(telegramUserId: nu
        LIMIT 1;`,
       [telegramUserId]
     )
-    return res.rows[0] || null
+    const row = res.rows[0] || null
+    if (!row) return null
+    return {
+      ...row,
+      claimed_phone_number: decryptPII(row.claimed_phone_number),
+      claimed_phone_e164: decryptPII(row.claimed_phone_e164),
+      actual_sender_number: decryptPII(row.actual_sender_number),
+      actual_sender_e164: decryptPII(row.actual_sender_e164),
+    }
   } finally {
     client.release()
   }
@@ -558,7 +615,15 @@ export async function associateTelegramUserWithChallenge(params: {
        RETURNING *;`,
       [params.telegramUserId, params.telegramUsername || null, params.challengeId]
     )
-    return res.rows[0] || null
+    const row = res.rows[0] || null
+    if (!row) return null
+    return {
+      ...row,
+      claimed_phone_number: decryptPII(row.claimed_phone_number),
+      claimed_phone_e164: decryptPII(row.claimed_phone_e164),
+      actual_sender_number: decryptPII(row.actual_sender_number),
+      actual_sender_e164: decryptPII(row.actual_sender_e164),
+    }
   } finally {
     client.release()
   }
@@ -612,7 +677,11 @@ export async function processPhoneVerificationComparison(params: {
       return { success: false, reason: 'CHALLENGE_EXPIRED' }
     }
 
-    const matches = challenge.claimed_phone_e164 === params.actualSenderE164
+    const decryptedClaimed = decryptPII(challenge.claimed_phone_e164)
+    const matches =
+      decryptedClaimed === params.actualSenderE164 ||
+      challenge.claimed_phone_e164 === params.actualSenderE164 ||
+      decryptedClaimed === params.actualSenderPhone
     const newAttempts = (challenge.attempts_count || 0) + 1
     const isBurned = !matches && newAttempts >= 3
 
@@ -629,9 +698,11 @@ export async function processPhoneVerificationComparison(params: {
     let finalIdentityId = challenge.identity_id || null
     if (matches) {
       try {
+        const cleanDigits = params.actualSenderE164.replace(/[^0-9+]/g, '')
+        const encPhone = encryptPII(cleanDigits)
         const linkRes = await client.query(
           `SELECT * FROM public.cloud_link_phone_identity($1, $2);`,
-          [params.actualSenderE164.replace(/[^0-9+]/g, ''), challenge.identity_id || null]
+          [encPhone, challenge.identity_id || null]
         )
         if (linkRes.rows[0]?.identity_id) {
           finalIdentityId = linkRes.rows[0].identity_id
@@ -640,6 +711,9 @@ export async function processPhoneVerificationComparison(params: {
         console.error('5NF link phone identity error (non-fatal):', linkErr)
       }
     }
+
+    const encActual = encryptPII(params.actualSenderPhone)
+    const encActualE164 = encryptPII(params.actualSenderE164)
 
     await client.query(
       `UPDATE public.phone_verification_challenges 
@@ -654,8 +728,8 @@ export async function processPhoneVerificationComparison(params: {
            identity_id = COALESCE($8, identity_id)
        WHERE id = $9;`,
       [
-        params.actualSenderPhone,
-        params.actualSenderE164,
+        encActual,
+        encActualE164,
         matches,
         newAttempts,
         params.telegramUserId || null,
@@ -671,7 +745,7 @@ export async function processPhoneVerificationComparison(params: {
       matches,
       status: newStatus,
       attempts: newAttempts,
-      claimedE164: challenge.claimed_phone_e164,
+      claimedE164: decryptedClaimed,
       actualE164: params.actualSenderE164,
       identityId: finalIdentityId,
     }

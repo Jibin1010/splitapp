@@ -137,14 +137,24 @@ export class PhoneVerificationService {
 
     // 1b. Anti-Collision & Exclusive Phone Binding Check
     try {
-      const dbCheck = await checkPhoneAttachmentStatus({
-        phone: normalized.e164,
-        currentIdentityId: userId,
-      })
-      if (!dbCheck.allowed) {
+      const memCheck = await VerificationRepository.checkPhoneAttachment(normalized.e164, userId)
+      if (!memCheck.allowed) {
         return {
           success: false,
-          error: dbCheck.error,
+          error: memCheck.error,
+        }
+      }
+      const isTest = process.env.NODE_ENV === 'test' && !process.env.TEST_WITH_LIVE_DB
+      if (!isTest) {
+        const dbCheck = await checkPhoneAttachmentStatus({
+          phone: normalized.e164,
+          currentIdentityId: userId,
+        })
+        if (!dbCheck.allowed) {
+          return {
+            success: false,
+            error: dbCheck.error,
+          }
         }
       }
     } catch {
