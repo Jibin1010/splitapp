@@ -14,6 +14,7 @@ import {
   Info,
   CheckCircle2,
   X,
+  Lock,
 } from 'lucide-react'
 import {
   Dialog,
@@ -43,6 +44,7 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
   const [results, setResults] = React.useState<SearchResultPerson[]>([])
   const [durationMs, setDurationMs] = React.useState<number | null>(null)
   const [isCached, setIsCached] = React.useState(false)
+  const [needsAuth, setNeedsAuth] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<'search' | 'architecture'>('search')
   const [addedIds, setAddedIds] = React.useState<Set<string>>(new Set())
 
@@ -76,7 +78,11 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
         )
         const t1 = performance.now()
 
-        if (res.ok) {
+        if (res.status === 401) {
+          setNeedsAuth(true)
+          setResults([])
+        } else if (res.ok) {
+          setNeedsAuth(false)
           const data = await res.json()
           if (data.ok && Array.isArray(data.results)) {
             setResults(data.results)
@@ -212,7 +218,26 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
 
             {/* Results List */}
             <div className="min-h-[220px] max-h-[340px] overflow-y-auto space-y-1.5 pr-1">
-              {query.trim().length === 0 ? (
+              {needsAuth ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                  <div className="flex size-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 mb-3">
+                    <Lock className="size-6" />
+                  </div>
+                  <p className="text-sm font-bold text-zinc-900">Sign in to Search Directory</p>
+                  <p className="text-xs text-zinc-500 max-w-sm mt-1">
+                    To prevent automated data harvesting, access to the 500,000 verified user directory is restricted to authenticated members.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      window.location.href = '/login'
+                    }}
+                    className="mt-3.5 bg-zinc-900 hover:bg-black text-white text-xs font-semibold rounded-xl px-4"
+                  >
+                    Log In to Access
+                  </Button>
+                </div>
+              ) : query.trim().length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
                   <Database className="size-10 text-zinc-300 stroke-1 mb-2" />
                   <p className="text-sm font-semibold text-zinc-700">Ready to search 500,000 records</p>
@@ -351,3 +376,4 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
     </Dialog>
   )
 }
+
