@@ -13,6 +13,7 @@ import { ProductsTable } from '@/components/dashboard/products-table'
 import { BillSplitBreakdown } from '@/components/dashboard/bill-split-breakdown'
 import { UserPerspectiveBar, PersonalSpotlightCard } from '@/components/dashboard/user-perspective-bar'
 import { UserSwitcherDialog } from '@/components/dashboard/user-switcher-dialog'
+import { ContactSearchDialog } from '@/components/dashboard/contact-search-dialog'
 import { BillVaultCard } from '@/components/dashboard/vault/bill-vault-card'
 
 /**
@@ -34,20 +35,40 @@ export function DashboardShell() {
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [visionOpen, setVisionOpen] = React.useState(false)
   const [switcherOpen, setSwitcherOpen] = React.useState(false)
+  const [contactSearchOpen, setContactSearchOpen] = React.useState(false)
 
   const openHistory = () => setHistoryOpen(true)
   const openSettings = () => setSettingsOpen(true)
   const openVision = () => setVisionOpen(true)
   const openSwitcher = () => setSwitcherOpen(true)
+  const openContactSearch = () => setContactSearchOpen(true)
+
+  // Global Keyboard Shortcut: Cmd+K / Ctrl+K opens 5 Lakh Contact Search
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setContactSearchOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   return (
     <div id="top" className="print-reset min-h-screen lg:pl-60">
-      <Sidebar onOpenHistory={openHistory} onOpenSettings={openSettings} onOpenVision={openVision} />
+      <Sidebar
+        onOpenHistory={openHistory}
+        onOpenSettings={openSettings}
+        onOpenVision={openVision}
+        onOpenContactSearch={openContactSearch}
+      />
       <PageHeader
         onOpenHistory={openHistory}
         onOpenSettings={openSettings}
         onOpenVision={openVision}
         onOpenUserSwitcher={openSwitcher}
+        onOpenContactSearch={openContactSearch}
       />
 
       <main className="relative z-10 mx-auto w-full max-w-7xl space-y-4 p-4 sm:space-y-6 sm:p-6">
@@ -96,6 +117,7 @@ export function DashboardShell() {
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <ImageVisionDialog open={visionOpen} onOpenChange={setVisionOpen} />
       <UserSwitcherDialog open={switcherOpen} onOpenChange={setSwitcherOpen} />
+      <ContactSearchDialog open={contactSearchOpen} onOpenChange={setContactSearchOpen} />
     </div>
   )
 }

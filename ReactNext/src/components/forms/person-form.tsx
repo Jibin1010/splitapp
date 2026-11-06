@@ -70,7 +70,7 @@ export function PersonForm() {
       return
     }
 
-    // Debounce network requests by 200ms
+    // Debounce network requests by exactly 250ms (5 Lakh Search Architecture)
     const timer = setTimeout(async () => {
       const t0 = performance.now()
       try {
@@ -89,7 +89,7 @@ export function PersonForm() {
       } catch {
         // Fallback gracefully to local directory
       }
-    }, 200)
+    }, 250)
 
     return () => clearTimeout(timer)
   }, [name, excludedNames])

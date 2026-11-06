@@ -4,16 +4,19 @@ import { searchUsers } from '@/lib/user-search'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/users/search?q=<query>&limit=<1-25>&exclude=<name1,name2>
+ * GET /api/users/search?q=<query>&limit=<1-20>&exclude=<name1,name2>
  *
- * Sub-millisecond lookup for users by name or phone number.
- * Backed by PostgreSQL B-Tree (phone text_pattern_ops) and Trigram GIN (names).
+ * 5 Lakh User Architecture Search Endpoint:
+ * - 250ms debounced frontend query recipient
+ * - PostgreSQL Partial B-Tree + Trigram GIN indexed lookup (< 2.5ms)
+ * - Server-side LRU In-Memory Cache (0.05ms on cache hit)
+ * - Strict LIMIT 10 (max 20) to prevent network bloat
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const query = searchParams.get('q') || searchParams.get('query') || ''
-    const limit = Math.max(1, Math.min(Number(searchParams.get('limit')) || 10, 25))
+    const limit = Math.max(1, Math.min(Number(searchParams.get('limit')) || 10, 20))
     const rawExclude = searchParams.get('exclude') || ''
     const excludeNames = rawExclude
       ? rawExclude
@@ -28,11 +31,12 @@ export async function GET(req: NextRequest) {
         query: '',
         count: 0,
         executionTimeMs: 0,
+        cached: false,
         results: [],
       })
     }
 
-    const { results, executionTimeMs } = await searchUsers(query, {
+    const { results, executionTimeMs, cached } = await searchUsers(query, {
       limit,
       excludeNames,
     })
@@ -43,10 +47,12 @@ export async function GET(req: NextRequest) {
         query,
         count: results.length,
         executionTimeMs,
+        cached,
         results,
       },
       {
         headers: {
+          'X-Cache': cached ? 'HIT' : 'MISS',
           'Server-Timing': `search;dur=${executionTimeMs}`,
         },
       }
@@ -63,4 +69,3 @@ export async function GET(req: NextRequest) {
     )
   }
 }
-

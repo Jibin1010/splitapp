@@ -121,13 +121,15 @@ export function useVisionItems(params: UseVisionItemsParams) {
     setItemsList((prev) => prev.map((item) => ({ ...item, assignedParticipantIds: allIds })))
   }
 
-  const handleAddPerson = (name: string) => {
+  const handleAddPerson = (name: string, photo?: string, phone?: string, isPhoneVerified?: boolean) => {
     const trimmed = name.trim()
     if (!trimmed || dialogPeople.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) return
     const newPerson: DialogPerson = {
-      id: newId('person'),
+      id: phone ? `person-${phone.replace(/[^0-9]/g, '')}` : newId('person'),
       name: trimmed,
-      photo: getRandomAvatarForName(trimmed),
+      photo: photo || getRandomAvatarForName(trimmed),
+      phone,
+      isPhoneVerified: isPhoneVerified !== undefined ? isPhoneVerified : true,
       isNew: true,
     }
     setDialogPeople([...dialogPeople, newPerson])
@@ -161,6 +163,8 @@ export function useVisionItems(params: UseVisionItemsParams) {
       id: p.id,
       name: p.name,
       photo: p.photo,
+      phone: p.phone,
+      isPhoneVerified: p.isPhoneVerified,
     }))
 
     const adjustmentsToImport: Adjustment[] = []

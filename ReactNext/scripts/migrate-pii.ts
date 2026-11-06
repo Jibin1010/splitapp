@@ -140,3 +140,4 @@ async function migrateLegacyData() {
 }
 
 migrateLegacyData().catch(console.error)
+

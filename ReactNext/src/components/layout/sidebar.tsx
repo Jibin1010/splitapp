@@ -8,6 +8,7 @@ import {
   Info,
   LayoutDashboard,
   Menu,
+  Search,
   Settings,
   Sparkles,
   Split,
@@ -34,6 +35,7 @@ interface SidebarNavProps {
   onOpenHistory: () => void
   onOpenSettings: () => void
   onOpenVision?: () => void
+  onOpenContactSearch?: () => void
   onNavigate?: () => void
 }
 
@@ -80,7 +82,7 @@ function NavItem({
   )
 }
 
-function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onNavigate }: SidebarNavProps) {
+function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContactSearch, onNavigate }: SidebarNavProps) {
   const { state, startNewBill } = useBillStore()
   const [confirmOpen, setConfirmOpen] = React.useState(false)
 
@@ -108,6 +110,16 @@ function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onNavigate }:
           }}
         />
         <NavItem icon={<FilePlus2 />} label="New Split" onClick={handleNewSplit} />
+        {onOpenContactSearch && (
+          <NavItem
+            icon={<Search className="size-4 text-emerald-500" />}
+            label="5 Lakh Search"
+            onClick={() => {
+              onNavigate?.()
+              onOpenContactSearch()
+            }}
+          />
+        )}
         {onOpenVision && (
           <NavItem
             icon={<Sparkles className="size-4 text-indigo-500" />}
@@ -196,19 +208,24 @@ function Logo() {
 }
 
 /** Fixed sidebar for desktop (lg and up). */
-export function Sidebar({ onOpenHistory, onOpenSettings, onOpenVision }: SidebarNavProps) {
+export function Sidebar({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContactSearch }: SidebarNavProps) {
   return (
     <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-card p-4 lg:flex">
       <Logo />
       <nav className="mt-4 flex flex-1 flex-col" aria-label="Main navigation">
-        <SidebarNav onOpenHistory={onOpenHistory} onOpenSettings={onOpenSettings} onOpenVision={onOpenVision} />
+        <SidebarNav
+          onOpenHistory={onOpenHistory}
+          onOpenSettings={onOpenSettings}
+          onOpenVision={onOpenVision}
+          onOpenContactSearch={onOpenContactSearch}
+        />
       </nav>
     </aside>
   )
 }
 
 /** Hamburger-driven drawer navigation for mobile. */
-export function MobileNav({ onOpenHistory, onOpenSettings, onOpenVision }: SidebarNavProps) {
+export function MobileNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContactSearch }: SidebarNavProps) {
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -240,6 +257,10 @@ export function MobileNav({ onOpenHistory, onOpenSettings, onOpenVision }: Sideb
             onOpenVision={() => {
               setOpen(false)
               onOpenVision?.()
+            }}
+            onOpenContactSearch={() => {
+              setOpen(false)
+              onOpenContactSearch?.()
             }}
             onNavigate={() => setOpen(false)}
           />

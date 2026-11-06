@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Save, Sparkles } from 'lucide-react'
+import { Save, Search, Sparkles } from 'lucide-react'
 import { useBillStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -18,11 +18,13 @@ export function PageHeader({
   onOpenSettings,
   onOpenVision,
   onOpenUserSwitcher,
+  onOpenContactSearch,
 }: {
   onOpenHistory: () => void
   onOpenSettings: () => void
   onOpenVision?: () => void
   onOpenUserSwitcher?: () => void
+  onOpenContactSearch?: () => void
 }) {
   const { state, dispatch, saveNamedDraft, draftSavedAt, activePerson } = useBillStore()
   const bill = state.bill
@@ -36,7 +38,12 @@ export function PageHeader({
   return (
     <header className="no-print sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3.5 sm:px-6">
-        <MobileNav onOpenHistory={onOpenHistory} onOpenSettings={onOpenSettings} onOpenVision={onOpenVision} />
+        <MobileNav
+          onOpenHistory={onOpenHistory}
+          onOpenSettings={onOpenSettings}
+          onOpenVision={onOpenVision}
+          onOpenContactSearch={onOpenContactSearch}
+        />
 
         {activePerson && (
           <div className="flex items-center gap-2 text-left shrink-0">
@@ -78,6 +85,20 @@ export function PageHeader({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {onOpenContactSearch && (
+            <Button
+              variant="outline"
+              onClick={onOpenContactSearch}
+              className="hidden sm:inline-flex items-center gap-1.5 border-zinc-200 bg-white/90 text-zinc-900 hover:bg-zinc-100 shadow-2xs h-9 px-3"
+              title="Search 500,000 users and contacts (⌘K)"
+            >
+              <Search className="size-3.5 text-zinc-500" />
+              <span className="text-xs font-semibold">Search Users</span>
+              <kbd className="pointer-events-none hidden md:inline-flex h-4.5 select-none items-center gap-0.5 rounded border border-zinc-200 bg-zinc-100 px-1 font-mono text-[9px] font-semibold text-zinc-500">
+                ⌘K
+              </kbd>
+            </Button>
+          )}
           <div className="hidden flex-col items-end sm:flex" aria-live="polite">
             <span className="text-[11px] font-medium leading-tight text-muted-foreground">{savedHint}</span>
           </div>

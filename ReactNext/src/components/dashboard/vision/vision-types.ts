@@ -14,6 +14,8 @@ export interface DialogPerson {
   id: string
   name: string
   photo?: string
+  phone?: string
+  isPhoneVerified?: boolean
   isNew?: boolean
 }
 
