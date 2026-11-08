@@ -5,6 +5,8 @@ import {
   getActiveBillForUser,
   saveActiveBillForUser,
   resetActiveBillForUser,
+  getUserBills,
+  getBillByIdForUser,
 } from '@/lib/cloud-bill/bill-repository'
 import { parseBillPayload } from '@/lib/validation'
 
@@ -79,10 +81,45 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
     }
 
-    const bill = await getActiveBillForUser(auth.session.identityId, {
+    const { searchParams } = new URL(request.url)
+    const action = searchParams.get('action')
+    const billId = searchParams.get('billId')
+
+    const userProfile = {
       name: auth.session.displayName || 'You',
       avatarUrl: auth.session.avatarUrl,
-    })
+    }
+
+    // 1. Action: list all bills where user is owner or participant
+    if (action === 'list') {
+      const bills = await getUserBills(auth.session.identityId, userProfile)
+      return NextResponse.json({
+        ok: true,
+        success: true,
+        identityId: auth.session.identityId,
+        bills,
+      })
+    }
+
+    // 2. Fetch specific bill by ID (with strict participant boundary enforcement)
+    if (billId) {
+      const bill = await getBillByIdForUser(auth.session.identityId, billId, userProfile)
+      if (!bill) {
+        return NextResponse.json(
+          { ok: false, error: 'Forbidden: You are not a participant in this bill.' },
+          { status: 403 }
+        )
+      }
+      return NextResponse.json({
+        ok: true,
+        success: true,
+        identityId: auth.session.identityId,
+        bill,
+      })
+    }
+
+    // 3. Default: active bill
+    const bill = await getActiveBillForUser(auth.session.identityId, userProfile)
 
     return NextResponse.json({
       ok: true,

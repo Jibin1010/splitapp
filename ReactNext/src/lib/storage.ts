@@ -56,8 +56,29 @@ export function loadDraft(): Bill | null {
   return draft
 }
 
+let lastCachedUpdatedAt: string | null = null
+let lastCachedBillId: string | null = null
+
 export function saveDraft(bill: Bill): boolean {
-  return safeSetJson(DRAFT_KEY, bill)
+  if (
+    lastCachedBillId === bill.id &&
+    lastCachedUpdatedAt === bill.updatedAt
+  ) {
+    return true // Unchanged, skip redundant writes
+  }
+  const cached = safeGetJson<Bill>(DRAFT_KEY)
+  if (cached && cached.id === bill.id && cached.updatedAt === bill.updatedAt) {
+    lastCachedBillId = bill.id
+    lastCachedUpdatedAt = bill.updatedAt
+    return true
+  }
+  const ok = safeSetJson(DRAFT_KEY, bill)
+  if (ok) {
+    lastCachedBillId = bill.id
+    lastCachedUpdatedAt = bill.updatedAt
+    safeSetJson(`splitledger.bill.${bill.id}`, bill)
+  }
+  return ok
 }
 
 export function clearDraft(): void {

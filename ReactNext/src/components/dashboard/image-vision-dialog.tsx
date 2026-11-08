@@ -62,6 +62,7 @@ export function ImageVisionDialog({
     imageSrc: v.imageSrc,
     imageName: v.imageName,
     state: v.state,
+    billTitle: v.billTitle,
   })
 
   return (
@@ -231,6 +232,70 @@ export function ImageVisionDialog({
                         totalBillRupees={v.totalBillRupees}
                         tailPeople={v.tailPeople}
                       />
+
+                      {/* Bill Naming & Auto-Name Selection */}
+                      <div className="rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-50/70 via-white to-sky-50/40 p-4 shadow-2xs space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Receipt className="size-4 text-indigo-600" />
+                            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                              Bill Name / Title
+                            </span>
+                            <span className="text-[11px] text-slate-500 hidden sm:inline">
+                              · Auto-generated from receipt or customize below
+                            </span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={v.resetToAutoName}
+                            className="h-7 text-xs gap-1.5 bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 shadow-2xs cursor-pointer"
+                            title="Re-generate title automatically from extracted receipt vendor and invoice"
+                          >
+                            <Sparkles className="size-3 text-indigo-500" />
+                            <span>⚡ Auto Name from Receipt</span>
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={v.billTitle}
+                            onChange={(e) => v.setBillTitle(e.target.value)}
+                            placeholder="e.g. Duniyav Bir #99307"
+                            className="flex h-9 w-full rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                          />
+                        </div>
+
+                        {v.suggestedNames.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                              Quick Picks:
+                            </span>
+                            {v.suggestedNames.map((name) => {
+                              const isPicked = v.billTitle === name
+                              return (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => v.setBillTitle(name)}
+                                  className={cn(
+                                    'rounded-full px-2.5 py-0.5 text-[11px] font-semibold border transition-all cursor-pointer',
+                                    isPicked
+                                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                  )}
+                                >
+                                  {name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
                         <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground">
                           <Checkbox

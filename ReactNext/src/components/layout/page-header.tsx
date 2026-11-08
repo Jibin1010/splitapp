@@ -19,12 +19,14 @@ export function PageHeader({
   onOpenVision,
   onOpenUserSwitcher,
   onOpenContactSearch,
+  onOpenBills,
 }: {
   onOpenHistory: () => void
   onOpenSettings: () => void
   onOpenVision?: () => void
   onOpenUserSwitcher?: () => void
   onOpenContactSearch?: () => void
+  onOpenBills?: () => void
 }) {
   const { state, dispatch, saveNamedDraft, draftSavedAt, activePerson } = useBillStore()
   const bill = state.bill
@@ -43,6 +45,7 @@ export function PageHeader({
           onOpenSettings={onOpenSettings}
           onOpenVision={onOpenVision}
           onOpenContactSearch={onOpenContactSearch}
+          onOpenBills={onOpenBills}
         />
 
         {activePerson && (

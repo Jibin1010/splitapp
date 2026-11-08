@@ -3,6 +3,8 @@ import {
   getActiveBillForUser,
   saveActiveBillForUser,
   resetActiveBillForUser,
+  getUserBills,
+  getBillByIdForUser,
   clearBillRepositoryMemory,
 } from '@/lib/cloud-bill/bill-repository'
 import type { Bill } from '@/types/split'
@@ -184,5 +186,56 @@ describe('Server-Side 5NF Multi-Tenant Bill & Group Data Isolation', () => {
     expect(reloaded?.name).toBe('Duniyav Bir #99307')
     expect(reloaded?.items).toHaveLength(1)
     expect(reloaded?.items[0].name).toBe('Chicken Biriyani')
+  })
+
+  it('8. should return all bills where user is a participant via getUserBills and hide bills where user is not involved', async () => {
+    // Bill 1: Alice + Bob
+    const bill1 = await getActiveBillForUser(userA_id, { name: 'Alice Smith' })
+    bill1.name = 'Trip to Goa'
+    bill1.people.push({ id: 'person-bob', name: 'Bob Jones', paidAmount: 0 })
+    bill1.items.push({
+      id: 'item-hotel',
+      name: 'Resort Stay',
+      quantity: 1,
+      unitPrice: 500000,
+      allocation: { mode: 'equal', participantIds: [bill1.people[0].id, 'person-bob'] },
+    })
+    await saveActiveBillForUser(userA_id, bill1)
+
+    // Bill 2: Charlie only (userB_id)
+    const bill2 = await getActiveBillForUser(userB_id, { name: 'Charlie Brown' })
+    bill2.name = 'Lunch with David'
+    bill2.people.push({ id: 'person-david', name: 'David Lee', paidAmount: 0 })
+    await saveActiveBillForUser(userB_id, bill2)
+
+    // Alice queries her bills: must see "Trip to Goa", must NOT see "Lunch with David"
+    const aliceBills = await getUserBills(userA_id, { name: 'Alice Smith' })
+    expect(aliceBills.some((b) => b.name === 'Trip to Goa')).toBe(true)
+    expect(aliceBills.some((b) => b.name === 'Lunch with David')).toBe(false)
+
+    // Bob queries his bills: must see "Trip to Goa", must NOT see "Lunch with David"
+    const bobBills = await getUserBills('person-bob', { name: 'Bob Jones' })
+    expect(bobBills.some((b) => b.name === 'Trip to Goa')).toBe(true)
+    expect(bobBills.some((b) => b.name === 'Lunch with David')).toBe(false)
+
+    // Charlie queries his bills: must see "Lunch with David", must NOT see "Trip to Goa"
+    const charlieBills = await getUserBills(userB_id, { name: 'Charlie Brown' })
+    expect(charlieBills.some((b) => b.name === 'Lunch with David')).toBe(true)
+    expect(charlieBills.some((b) => b.name === 'Trip to Goa')).toBe(false)
+  })
+
+  it('9. should return bill by ID via getBillByIdForUser only if user is owner or participant, and reject non-participants', async () => {
+    const billA = await getActiveBillForUser(userA_id, { name: 'Alice Smith' })
+    billA.name = 'Secret Split'
+    await saveActiveBillForUser(userA_id, billA)
+
+    // Alice can load her own bill
+    const loadedByAlice = await getBillByIdForUser(userA_id, billA.id, { name: 'Alice Smith' })
+    expect(loadedByAlice).not.toBeNull()
+    expect(loadedByAlice?.id).toBe(billA.id)
+
+    // Charlie (userB_id) cannot load Alice's bill
+    const loadedByCharlie = await getBillByIdForUser(userB_id, billA.id, { name: 'Charlie Brown' })
+    expect(loadedByCharlie).toBeNull()
   })
 })

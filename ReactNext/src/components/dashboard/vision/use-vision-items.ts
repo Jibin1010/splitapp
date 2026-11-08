@@ -29,6 +29,7 @@ interface UseVisionItemsParams {
   imageSrc?: string | null
   imageName?: string
   state?: any
+  billTitle?: string
 }
 
 export function useVisionItems(params: UseVisionItemsParams) {
@@ -184,7 +185,8 @@ export function useVisionItems(params: UseVisionItemsParams) {
     const vendor = result?.vendor?.trim()
     const invoiceNumber = result?.invoiceNumber?.trim()
     const date = result?.date?.trim()
-    const billName = vendor ? `${vendor}${invoiceNumber ? ` #${invoiceNumber}` : ''}` : undefined
+    const autoDerivedName = vendor ? `${vendor}${invoiceNumber ? ` #${invoiceNumber}` : ''}` : undefined
+    const billName = (params.billTitle || '').trim() || autoDerivedName || params.state?.bill?.name || 'Group Split'
 
     const activeHeads = headPersonIds.length > 0 ? headPersonIds : [dialogPeople[0]?.id].filter(Boolean)
     const headPayersToImport = activeHeads.map((hid) => ({

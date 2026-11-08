@@ -42,6 +42,56 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
   const [headPersonIds, setHeadPersonIds] = React.useState<string[]>([])
   const [headPaidAmounts, setHeadPaidAmounts] = React.useState<Record<string, number>>({})
   const [tailHeadPreferences, setTailHeadPreferences] = React.useState<Record<string, string>>({})
+  const [billTitle, setBillTitle] = React.useState<string>('')
+
+  // Compute smart suggested bill names automatically from analyzed receipt
+  const suggestedNames = React.useMemo(() => {
+    if (!result || !result.ok) return []
+    const vendor = result.vendor?.trim() || ''
+    const inv = result.invoiceNumber?.trim() || ''
+    const dt = result.date?.trim() || ''
+    const list: string[] = []
+
+    if (vendor && inv) list.push(`${vendor} #${inv}`)
+    if (vendor) list.push(vendor)
+    if (vendor && dt) list.push(`${vendor} (${dt})`)
+    if (inv) list.push(`Receipt #${inv}`)
+    list.push('Group Split')
+
+    return Array.from(new Set(list.filter(Boolean))).slice(0, 4)
+  }, [result])
+
+  // Automatically pre-fill billTitle whenever a receipt is parsed
+  React.useEffect(() => {
+    if (result && result.ok) {
+      const vendor = result.vendor?.trim() || ''
+      const inv = result.invoiceNumber?.trim() || ''
+      const dt = result.date?.trim() || ''
+
+      let autoName = ''
+      if (vendor && inv) {
+        autoName = `${vendor} #${inv}`
+      } else if (vendor && dt) {
+        autoName = `${vendor} (${dt})`
+      } else if (vendor) {
+        autoName = vendor
+      } else if (inv) {
+        autoName = `Receipt #${inv}`
+      } else {
+        autoName = 'Group Split'
+      }
+
+      setBillTitle(autoName)
+    }
+  }, [result])
+
+  const resetToAutoName = React.useCallback(() => {
+    if (suggestedNames.length > 0) {
+      setBillTitle(suggestedNames[0])
+    } else {
+      setBillTitle('Group Split')
+    }
+  }, [suggestedNames])
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const sampleTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
@@ -309,6 +359,10 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
     tailPeople,
     computedTotalPaise,
     totalBillRupees,
+    billTitle,
+    setBillTitle,
+    suggestedNames,
+    resetToAutoName,
     handleFileSelect,
     handleAnalyze,
     handleLoadSampleReceipt,

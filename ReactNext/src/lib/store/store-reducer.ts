@@ -3,6 +3,7 @@ import { allocationWithoutPerson, billTotalsOf } from '@/lib/calculations'
 import { createEmptyBill } from '@/lib/seed'
 import { get1000DummyPeople, getRandomAvatarForName, getRandomPhoneForName } from '@/lib/dummy-people'
 import { newId } from '@/lib/id'
+import { getStoredUser } from '@/lib/auth'
 import type { StoreAction, StoreState } from './store-types'
 import { handleImportAnalysisResult, touch } from './store-import-handler'
 
@@ -240,15 +241,35 @@ export function reducer(state: StoreState, action: StoreAction): StoreState {
         savedAt: null,
         calculatedFromUpdatedAt: null,
       }
-    case 'LOAD_BILL':
+    case 'LOAD_BILL': {
+      let matchedActivePersonId = state.activePersonId
+      try {
+        const authUser = getStoredUser()
+        if (authUser && Array.isArray(action.bill.people)) {
+          const found = action.bill.people.find(
+            (p) =>
+              p.id === authUser.id ||
+              p.name.trim().toLowerCase() === authUser.name.trim().toLowerCase() ||
+              (authUser.phone && p.phone && p.phone.replace(/\D/g, '').slice(-10) === authUser.phone.replace(/\D/g, '').slice(-10))
+          )
+          if (found) matchedActivePersonId = found.id
+        }
+      } catch {}
+
+      if (!action.bill.people.some((p) => p.id === matchedActivePersonId)) {
+        matchedActivePersonId = action.bill.people[0]?.id || null
+      }
+
       return {
         ...state,
         bill: action.bill,
+        activePersonId: matchedActivePersonId,
         result: null,
         error: null,
         savedAt: null,
         calculatedFromUpdatedAt: null,
       }
+    }
     case 'CALCULATE_START':
       return { ...state, calculating: true, error: null }
     case 'CALCULATE_SUCCESS':

@@ -14,6 +14,7 @@ import { BillSplitBreakdown } from '@/components/dashboard/bill-split-breakdown'
 import { UserPerspectiveBar, PersonalSpotlightCard } from '@/components/dashboard/user-perspective-bar'
 import { UserSwitcherDialog } from '@/components/dashboard/user-switcher-dialog'
 import { ContactSearchDialog } from '@/components/dashboard/contact-search-dialog'
+import { BillsDialog } from '@/components/dashboard/bills-dialog'
 
 /**
  * The whole user journey lives on one dashboard: summary figures, the
@@ -35,12 +36,14 @@ export function DashboardShell() {
   const [visionOpen, setVisionOpen] = React.useState(false)
   const [switcherOpen, setSwitcherOpen] = React.useState(false)
   const [contactSearchOpen, setContactSearchOpen] = React.useState(false)
+  const [billsOpen, setBillsOpen] = React.useState(false)
 
   const openHistory = () => setHistoryOpen(true)
   const openSettings = () => setSettingsOpen(true)
   const openVision = () => setVisionOpen(true)
   const openSwitcher = () => setSwitcherOpen(true)
   const openContactSearch = () => setContactSearchOpen(true)
+  const openBills = () => setBillsOpen(true)
 
   // Global Keyboard Shortcut: Cmd+K / Ctrl+K opens 5 Lakh Contact Search
   React.useEffect(() => {
@@ -61,6 +64,7 @@ export function DashboardShell() {
         onOpenSettings={openSettings}
         onOpenVision={openVision}
         onOpenContactSearch={openContactSearch}
+        onOpenBills={openBills}
       />
       <PageHeader
         onOpenHistory={openHistory}
@@ -68,6 +72,7 @@ export function DashboardShell() {
         onOpenVision={openVision}
         onOpenUserSwitcher={openSwitcher}
         onOpenContactSearch={openContactSearch}
+        onOpenBills={openBills}
       />
 
       <main className="relative z-10 mx-auto w-full max-w-7xl space-y-4 p-4 sm:space-y-6 sm:p-6">
@@ -116,6 +121,7 @@ export function DashboardShell() {
       <ImageVisionDialog open={visionOpen} onOpenChange={setVisionOpen} />
       <UserSwitcherDialog open={switcherOpen} onOpenChange={setSwitcherOpen} />
       <ContactSearchDialog open={contactSearchOpen} onOpenChange={setContactSearchOpen} />
+      <BillsDialog open={billsOpen} onOpenChange={setBillsOpen} />
     </div>
   )
 }
