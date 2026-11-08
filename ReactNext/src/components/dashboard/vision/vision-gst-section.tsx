@@ -28,6 +28,78 @@ interface VisionGstSectionProps {
   setPersonGstShares: React.Dispatch<React.SetStateAction<Record<string, number>>>
 }
 
+export function computeProportionalGstShares(
+  items: EditableDetectedItem[],
+  people: DialogPerson[]
+): Record<string, number> {
+  const count = people.length
+  if (count === 0) return {}
+
+  const personTotals: Record<string, number> = {}
+  people.forEach((p) => {
+    personTotals[p.id] = 0
+  })
+
+  let totalAssignedSpend = 0
+  items.forEach((item) => {
+    const assigned = item.assignedParticipantIds || []
+    if (assigned.length > 0) {
+      const share = item.totalPaise / assigned.length
+      assigned.forEach((pid) => {
+        if (personTotals[pid] !== undefined) {
+          personTotals[pid] += share
+          totalAssignedSpend += share
+        }
+      })
+    }
+  })
+
+  const shares: Record<string, number> = {}
+
+  if (totalAssignedSpend > 0) {
+    let sumPercent = 0
+    people.forEach((p, idx) => {
+      if (idx === count - 1) {
+        shares[p.id] = Math.max(0, Math.round((100 - sumPercent) * 10) / 10)
+      } else {
+        const pct = Math.round((personTotals[p.id] / totalAssignedSpend) * 1000) / 10
+        shares[p.id] = pct
+        sumPercent += pct
+      }
+    })
+  } else {
+    const equalShare = Math.round((100 / count) * 10) / 10
+    let running = 0
+    people.forEach((p, idx) => {
+      if (idx === count - 1) {
+        shares[p.id] = Math.max(0, Math.round((100 - running) * 10) / 10)
+      } else {
+        shares[p.id] = equalShare
+        running += equalShare
+      }
+    })
+  }
+
+  return shares
+}
+
+export function computeEqualGstShares(people: DialogPerson[]): Record<string, number> {
+  const count = people.length
+  if (count === 0) return {}
+  const shares: Record<string, number> = {}
+  const equalShare = Math.round((100 / count) * 10) / 10
+  let running = 0
+  people.forEach((p, idx) => {
+    if (idx === count - 1) {
+      shares[p.id] = Math.max(0, Math.round((100 - running) * 10) / 10)
+    } else {
+      shares[p.id] = equalShare
+      running += equalShare
+    }
+  })
+  return shares
+}
+
 export function VisionGstSection({
   itemsList,
   dialogPeople,
@@ -41,54 +113,39 @@ export function VisionGstSection({
   personGstShares,
   setPersonGstShares,
 }: VisionGstSectionProps) {
+  // Automatically calculate default proportional shares even before pressing any button,
+  // and whenever items, quantities, prices, or participant assignments change!
+  React.useEffect(() => {
+    if (dialogPeople.length === 0) return
+
+    if (gstSplitMode === 'proportional') {
+      const propShares = computeProportionalGstShares(itemsList, dialogPeople)
+      setPersonGstShares(propShares)
+    } else if (gstSplitMode === 'equal') {
+      const eqShares = computeEqualGstShares(dialogPeople)
+      setPersonGstShares(eqShares)
+    }
+  }, [itemsList, dialogPeople, gstSplitMode])
+
   const handleProportionalGstSplit = () => {
     setGstSplitMode('proportional')
-    const totalItems = computedTotalPaise
-    if (totalItems <= 0 || dialogPeople.length === 0) return
-
-    const personTotals: Record<string, number> = {}
-    dialogPeople.forEach((p) => { personTotals[p.id] = 0 })
-
-    itemsList.forEach((item) => {
-      const assigned = item.assignedParticipantIds || []
-      if (assigned.length > 0) {
-        const share = item.totalPaise / assigned.length
-        assigned.forEach((pid) => {
-          if (personTotals[pid] !== undefined) personTotals[pid] += share
-        })
-      }
-    })
-
-    const shares: Record<string, number> = {}
-    let sumPercent = 0
-    dialogPeople.forEach((p, idx) => {
-      if (idx === dialogPeople.length - 1) {
-        shares[p.id] = Math.max(0, Math.round((100 - sumPercent) * 10) / 10)
-      } else {
-        const pct = totalItems > 0 ? Math.round((personTotals[p.id] / totalItems) * 1000) / 10 : 0
-        shares[p.id] = pct
-        sumPercent += pct
-      }
-    })
-    setPersonGstShares(shares)
+    const propShares = computeProportionalGstShares(itemsList, dialogPeople)
+    setPersonGstShares(propShares)
   }
 
   const handleEqualGstSplit = () => {
     setGstSplitMode('equal')
-    const count = dialogPeople.length
-    if (count === 0) return
-    const shares: Record<string, number> = {}
-    const equalShare = Math.round((100 / count) * 10) / 10
-    let running = 0
-    dialogPeople.forEach((p, idx) => {
-      if (idx === count - 1) {
-        shares[p.id] = Math.max(0, Math.round((100 - running) * 10) / 10)
-      } else {
-        shares[p.id] = equalShare
-        running += equalShare
-      }
+    const eqShares = computeEqualGstShares(dialogPeople)
+    setPersonGstShares(eqShares)
+  }
+
+  const handleCustomGstSplit = () => {
+    setGstSplitMode('custom')
+    const zeroShares: Record<string, number> = {}
+    dialogPeople.forEach((p) => {
+      zeroShares[p.id] = 0
     })
-    setPersonGstShares(shares)
+    setPersonGstShares(zeroShares)
   }
 
   const totalGstPercent = Object.values(personGstShares).reduce(
@@ -185,6 +242,7 @@ export function VisionGstSection({
                     type="text"
                     inputMode="decimal"
                     value={customGstRupees.toFixed(2)}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setCustomGstRupees(parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0)}
                     className="h-8 w-24 pl-6 text-right font-mono text-xs font-bold text-slate-900 bg-white border-slate-200"
                   />
@@ -219,7 +277,7 @@ export function VisionGstSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setGstSplitMode('custom')}
+                    onClick={handleCustomGstSplit}
                     className={cn(
                       'rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer',
                       gstSplitMode === 'custom'
@@ -257,8 +315,10 @@ export function VisionGstSection({
                           min={0}
                           max={100}
                           value={percent}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0
+                            const raw = e.target.value
+                            const val = raw === '' ? 0 : Math.max(0, Math.min(100, parseFloat(raw) || 0))
                             setPersonGstShares((prev) => ({ ...prev, [person.id]: val }))
                             setGstSplitMode('custom')
                           }}

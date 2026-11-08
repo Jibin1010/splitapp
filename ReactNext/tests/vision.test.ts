@@ -217,4 +217,50 @@ Total 300.00
     expect(result.items[1].quantity).toBe(1)
     expect(result.items[1].unitPricePaise).toBe(12000)
   })
+
+  it('correctly calculates proportional GST shares based on participants item spend', async () => {
+    const { computeProportionalGstShares, computeEqualGstShares } = await import(
+      '@/components/dashboard/vision/vision-gst-section'
+    )
+
+    const people = [
+      { id: 'p-jibin', name: 'Jibin Jijo' },
+      { id: 'p-sindhu', name: 'Sindhu' },
+      { id: 'p-smeety', name: 'Smeety' },
+      { id: 'p-jijo', name: 'Jijo P George' },
+    ]
+
+    const items = [
+      {
+        id: 'i1',
+        name: 'Chicken Biriyani',
+        quantity: 3,
+        unitPricePaise: 18000,
+        totalPaise: 54000,
+        assignedParticipantIds: ['p-jibin', 'p-sindhu', 'p-smeety'],
+      },
+      {
+        id: 'i2',
+        name: 'Meals',
+        quantity: 1,
+        unitPricePaise: 12000,
+        totalPaise: 12000,
+        assignedParticipantIds: ['p-jijo'],
+      },
+    ]
+
+    const prop = computeProportionalGstShares(items as any, people as any)
+    expect(prop['p-jibin']).toBe(27.3)
+    expect(prop['p-sindhu']).toBe(27.3)
+    expect(prop['p-smeety']).toBe(27.3)
+    expect(prop['p-jijo']).toBe(18.1)
+    const sum = Object.values(prop).reduce((a, b) => a + b, 0)
+    expect(Math.round(sum * 10) / 10).toBe(100.0)
+
+    const eq = computeEqualGstShares(people as any)
+    expect(eq['p-jibin']).toBe(25.0)
+    expect(eq['p-sindhu']).toBe(25.0)
+    expect(eq['p-smeety']).toBe(25.0)
+    expect(eq['p-jijo']).toBe(25.0)
+  })
 })
