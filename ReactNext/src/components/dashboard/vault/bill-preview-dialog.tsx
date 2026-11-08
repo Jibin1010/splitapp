@@ -269,42 +269,13 @@ export function BillPreviewDialog({ open, onOpenChange }: BillPreviewDialogProps
                   </p>
                 </div>
               ) : decryptedUrl ? (
-                <div className="space-y-3">
-                  <div className="relative max-h-96 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-950 flex items-center justify-center p-3 shadow-inner">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={decryptedUrl}
-                      alt="Decrypted Google Drive bill receipt"
-                      className="max-h-80 w-auto object-contain rounded-xl shadow-lg"
-                    />
-                  </div>
-
-                  {/* Drive Metadata Card */}
-                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3.5 flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
-                        <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
-                        <span>Google Drive Backup: {vaultFile?.folderName || 'SplitLedger Vault'}</span>
-                      </div>
-                      <p className="text-[11px] text-indigo-800/80 truncate">
-                        File: <code className="font-mono text-[10px] bg-indigo-100 px-1 py-0.5 rounded">{vaultFile?.fileName || 'receipt.enc'}</code> · AES-256 Zero-Knowledge
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {vaultFile?.driveWebLink && (
-                        <a
-                          href={vaultFile.driveWebLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-300 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition-all"
-                        >
-                          <ExternalLink className="size-3.5" />
-                          Open in Google Drive
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                <div className="relative max-h-[75vh] overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-950 flex items-center justify-center p-3 shadow-inner">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={decryptedUrl}
+                    alt="Decrypted Google Drive bill receipt"
+                    className="max-h-[65vh] w-auto object-contain rounded-xl shadow-lg"
+                  />
                 </div>
               ) : (
                 /* No receipt uploaded to Drive yet */
