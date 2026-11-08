@@ -127,7 +127,13 @@ export async function searchUsers(
   }
 
   const cleanDigits = trimmed.replace(/[^0-9+]/g, '')
-  const isNumericQuery = cleanDigits.length >= 2 && (/^\+?[0-9]+$/.test(trimmed) || cleanDigits.length > trimmed.length / 2)
+  const rawDigits = trimmed.replace(/[^0-9]/g, '')
+  const nationalDigits =
+    rawDigits.startsWith('91') && rawDigits.length > 10
+      ? rawDigits.slice(2)
+      : rawDigits.replace(/^0+/, '')
+  const isNumericQuery =
+    rawDigits.length >= 2 && (/^\+?[0-9\s-]+$/.test(trimmed) || rawDigits.length > trimmed.length / 2)
 
   const results: SearchResultPerson[] = []
   const seenKeys = new Set<string>()
@@ -137,10 +143,22 @@ export async function searchUsers(
     try {
       const client = await pool.connect()
       try {
-        const encDigits = cleanDigits ? encryptPII(cleanDigits) : ''
+        const candidatePhones = new Set<string>()
+        if (rawDigits.length >= 2) {
+          candidatePhones.add(rawDigits)
+          candidatePhones.add(`+${rawDigits}`)
+          candidatePhones.add(`+91${rawDigits}`)
+          candidatePhones.add(`91${rawDigits}`)
+          if (nationalDigits.length >= 2) {
+            candidatePhones.add(nationalDigits)
+            candidatePhones.add(`+91${nationalDigits}`)
+            candidatePhones.add(`91${nationalDigits}`)
+          }
+        }
+        const encPhoneList = Array.from(candidatePhones).map((p) => encryptPII(p))
         const encTrimmed = encryptPII(trimmed)
 
-        // Query database: check exact encrypted match with partial verification preference
+        // Query database: check exact encrypted match with candidate phone variants (handles missing +91)
         const res = await client.query(
           `SELECT 
              p.identity_id AS id,
@@ -150,10 +168,10 @@ export async function searchUsers(
              CASE WHEN ph.verified_at IS NOT NULL THEN true ELSE false END AS is_phone_verified
            FROM public.identity_profiles p
            LEFT JOIN public.phone_whatsapp_identities ph ON ph.identity_id = p.identity_id
-           WHERE p.display_name = $1 OR ph.e164_phone = $2
+           WHERE p.display_name = $1 OR ph.e164_phone = ANY($2::text[])
            ORDER BY is_phone_verified DESC, p.updated_at DESC
            LIMIT $3;`,
-          [encTrimmed, encDigits, limit]
+          [encTrimmed, encPhoneList.length > 0 ? encPhoneList : [encryptPII('__no_match__')], limit]
         )
 
         let dbRows = res.rows
@@ -176,13 +194,20 @@ export async function searchUsers(
           for (const row of scanRes.rows) {
             const decName = decryptPII(row.name).toLowerCase()
             const decPhone = row.phone ? decryptPII(row.phone) : ''
+            const decPhoneDigits = decPhone.replace(/[^0-9]/g, '')
+            const decNationalDigits = decPhoneDigits.startsWith('91') ? decPhoneDigits.slice(2) : decPhoneDigits
             
             // Apply 3-character threshold for substring matching on names
             const nameMatches = trimmed.length >= 3
               ? decName.includes(lowerQuery)
               : decName.startsWith(lowerQuery)
 
-            const phoneMatches = cleanDigits.length >= 2 && decPhone.includes(cleanDigits)
+            // Phone matches even when stored with +91 and user didn't type 91
+            const phoneMatches =
+              rawDigits.length >= 2 &&
+              (decPhoneDigits.includes(rawDigits) ||
+               decNationalDigits.includes(nationalDigits) ||
+               (nationalDigits.length >= 2 && decPhoneDigits.includes(nationalDigits)))
 
             if (nameMatches || phoneMatches) {
               if (!dbRows.some((r) => r.id === row.id)) {

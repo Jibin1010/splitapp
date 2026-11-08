@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { getRandomAvatarForName, searchPeopleSuggestions } from '@/lib/dummy-people'
 import type { SearchResultPerson } from '@/lib/user-search'
+import { formatPhoneDisplay } from '@/lib/phone-verification/phone'
 import { cn } from '@/lib/utils'
 import type { DialogPerson } from './vision-types'
 import { SAMPLE_PEOPLE } from './vision-sample-data'
@@ -205,7 +206,7 @@ export function VisionPeopleSection({
             {person.phone && (
               <span className="inline-flex items-center gap-0.5 text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
                 <ShieldCheck className="size-2.5 text-emerald-600" />
-                {person.phone}
+                {formatPhoneDisplay(person.phone)}
               </span>
             )}
             <button
@@ -286,7 +287,7 @@ export function VisionPeopleSection({
                         )}
                       >
                         <ShieldCheck className="size-2.5 text-emerald-500 shrink-0" />
-                        <span>{person.phone}</span>
+                        <span>{formatPhoneDisplay(person.phone)}</span>
                         <span className="font-bold text-[8px] uppercase">Verified</span>
                       </span>
                     )}

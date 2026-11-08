@@ -124,3 +124,32 @@ export function arePhonesEqual(phoneA: string, phoneB: string, defaultCountry = 
   return normA.e164 === normB.e164
 }
 
+/**
+ * Formats a phone number for clear, recognizable UI display.
+ * Example: "+919207293021" -> "+91 92072 93021"
+ * Separates country code from national number so users who didn't type "91" can instantly spot the number.
+ */
+export function formatPhoneDisplay(phone?: string | null): string {
+  if (!phone) return ''
+  const trimmed = phone.trim()
+  const cleanDigits = trimmed.replace(/[^\d]/g, '')
+
+  // Indian numbers: +91 followed by 10 digits
+  if (cleanDigits.startsWith('91') && cleanDigits.length === 12) {
+    const nat = cleanDigits.slice(2)
+    return `+91 ${nat.slice(0, 5)} ${nat.slice(5)}`
+  }
+
+  // 10-digit national number
+  if (cleanDigits.length === 10) {
+    return `+91 ${cleanDigits.slice(0, 5)} ${cleanDigits.slice(5)}`
+  }
+
+  // If already starts with + and formatting, keep or add space after country code
+  if (trimmed.startsWith('+')) {
+    return trimmed
+  }
+
+  return trimmed
+}
+

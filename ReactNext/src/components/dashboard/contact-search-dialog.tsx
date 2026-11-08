@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { useBillStore } from '@/lib/store'
 import type { SearchResultPerson } from '@/lib/user-search'
+import { formatPhoneDisplay } from '@/lib/phone-verification/phone'
 import { cn } from '@/lib/utils'
 
 interface ContactSearchDialogProps {
@@ -166,7 +167,7 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by phone number or name (e.g. 98200, Maya, Jibin)..."
+                placeholder="Search by phone or name (e.g. 920729302, 98200, Maya)..."
                 className="pl-10 pr-24 h-11 text-sm rounded-2xl border-zinc-200 bg-zinc-50/70 focus:bg-white shadow-inner"
                 autoFocus
               />
@@ -242,7 +243,7 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
                   <Database className="size-10 text-zinc-300 stroke-1 mb-2" />
                   <p className="text-sm font-semibold text-zinc-700">Ready to search 500,000 records</p>
                   <p className="text-xs max-w-sm mt-1 text-zinc-500">
-                    Try typing digits like <span className="font-mono font-bold text-zinc-700">98200</span> for B-Tree lookup, or a name like <span className="font-semibold text-zinc-700">Maya</span> for Trigram GIN autocomplete.
+                    Try typing digits like <span className="font-mono font-bold text-zinc-700">920729302</span> (with or without +91 code), or a name like <span className="font-semibold text-zinc-700">Maya</span>.
                   </p>
                 </div>
               ) : results.length === 0 && !loading && !debouncing ? (
@@ -266,9 +267,9 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
                             {person.name}
                           </span>
                           {person.phone ? (
-                            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5">
+                            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-0.5">
                               <ShieldCheck className="size-3 text-emerald-600 shrink-0" />
-                              <span>{person.phone}</span>
+                              <span>{formatPhoneDisplay(person.phone)}</span>
                               <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-800">
                                 Verified
                               </span>

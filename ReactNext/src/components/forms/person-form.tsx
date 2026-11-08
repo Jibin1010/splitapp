@@ -6,6 +6,7 @@ import { normalizeName } from '@/lib/calculations'
 import { useBillStore } from '@/lib/store'
 import { getRandomAvatarForName, searchPeopleSuggestions } from '@/lib/dummy-people'
 import type { SearchResultPerson } from '@/lib/user-search'
+import { formatPhoneDisplay } from '@/lib/phone-verification/phone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -235,7 +236,7 @@ export function PersonForm() {
                         )}
                       >
                         <ShieldCheck className="size-3 text-emerald-500 shrink-0" />
-                        <span>{person.phone}</span>
+                        <span>{formatPhoneDisplay(person.phone)}</span>
                         <span
                           className={cn(
                             'text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded',

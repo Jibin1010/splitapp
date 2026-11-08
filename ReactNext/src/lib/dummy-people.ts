@@ -109,11 +109,35 @@ export function searchPeopleSuggestions(
   if (!q) return []
 
   const excludeSet = new Set(excludeNames.map((n) => n.trim().toLowerCase()))
+  const qCleanDigits = q.replace(/[^0-9]/g, '')
+  const qNationalDigits =
+    qCleanDigits.startsWith('91') && qCleanDigits.length > 10
+      ? qCleanDigits.slice(2)
+      : qCleanDigits.replace(/^0+/, '')
 
   const filtered = ALL_SUGGESTED_NAMES.filter((p) => {
     const lower = p.name.toLowerCase()
     if (excludeSet.has(lower)) return false
-    return lower.includes(q) || p.phone.includes(q)
+
+    // Name matching
+    if (lower.includes(q)) return true
+
+    // Phone matching: matches even if stored with +91 and user didn't type 91
+    if (qCleanDigits.length >= 2) {
+      const pClean = p.phone.replace(/[^0-9]/g, '')
+      const pNational = pClean.startsWith('91') ? pClean.slice(2) : pClean
+
+      if (
+        pClean.includes(qCleanDigits) ||
+        pNational.includes(qNationalDigits) ||
+        (qNationalDigits.length >= 2 && pClean.includes(qNationalDigits)) ||
+        p.phone.toLowerCase().includes(q)
+      ) {
+        return true
+      }
+    }
+
+    return false
   })
 
   filtered.sort((a, b) => {
