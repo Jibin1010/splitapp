@@ -17,6 +17,7 @@ export function SplitSummary() {
   const { state, preview, resultIsStale } = useBillStore()
   const bill = state.bill
   const result = state.result
+  const activeResult = result && !resultIsStale ? result : preview
   const liveIssues = preview.issues
 
   return (
@@ -94,10 +95,10 @@ export function SplitSummary() {
           </p>
         )}
 
-        {result && bill.people.length > 0 && (
+        {activeResult && bill.people.length > 0 && (
           <ul className="divide-y divide-border">
             {bill.people.map((person) => {
-              const personResult = result.people[person.id]
+              const personResult = activeResult.people[person.id]
               if (!personResult) return null
               const contributionEntries = Object.entries(personResult.itemContributions)
               return (
@@ -140,7 +141,7 @@ export function SplitSummary() {
                       </span>
                     </summary>
                     <div className="ml-6 mt-1.5 space-y-1 rounded-lg bg-muted/40 p-2.5 text-xs">
-                      {contributionEntries.length === 0 && result.adjustmentsTotal === 0 ? (
+                      {contributionEntries.length === 0 && activeResult.adjustmentsTotal === 0 ? (
                         <p className="text-muted-foreground">No items assigned.</p>
                       ) : (
                         <ul className="space-y-0.5">
@@ -154,7 +155,7 @@ export function SplitSummary() {
                             )
                           })}
                           {bill.adjustments.map((adj) => {
-                            const amount = result.adjustmentAllocations[adj.id]?.[person.id] ?? 0
+                            const amount = activeResult.adjustmentAllocations?.[adj.id]?.[person.id] ?? 0
                             if (amount === 0) return null
                             return (
                               <li key={adj.id} className="flex justify-between gap-3">

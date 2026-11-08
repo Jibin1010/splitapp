@@ -561,5 +561,53 @@ describe('custom adjustment percentage shares (GST)', () => {
     expect(t2?.amount).toBe(16100)
     expect(t1!.amount + t2!.amount).toBe(18900) // 189.00 full amount
   })
+
+  it('correctly calculates Duniyav Bir multi-head payer split: Jijo fronted ₹150 on ₹126 share and collects back ₹24', () => {
+    const sindhu = makePerson('Sindhu', 54300)
+    const smeety = makePerson('Smeety', 0)
+    const jibin = makePerson('Jibin Jijo', 0)
+    const jijo = makePerson('Jijo P George', 15000)
+
+    const biriyani = makeItem('Chicken Biriyani', 3, 18000, {
+      mode: 'equal',
+      participantIds: [sindhu.id, smeety.id, jibin.id],
+    })
+    const meals = makeItem('Meals', 1, 12000, {
+      mode: 'equal',
+      participantIds: [jijo.id],
+    })
+    const gst = makeAdjustment({ kind: 'tax', method: 'percent', value: 5, label: 'GST (5%)' })
+
+    const bill = makeBill([sindhu, smeety, jibin, jijo], [biriyani, meals], [gst])
+    const result = calculateBill(bill)
+
+    expect(result.valid).toBe(true)
+    expect(result.billTotal).toBe(69300)
+
+    // Sindhu: share 18900, paid 54300, net +35400
+    expect(result.people[sindhu.id].share).toBe(18900)
+    expect(result.people[sindhu.id].paid).toBe(54300)
+    expect(result.people[sindhu.id].net).toBe(35400)
+
+    // Jijo P George: share 12600, paid 15000, net +2400 (collects back ₹24.00!)
+    expect(result.people[jijo.id].share).toBe(12600)
+    expect(result.people[jijo.id].paid).toBe(15000)
+    expect(result.people[jijo.id].net).toBe(2400)
+
+    // Jibin & Smeety: share 18900, paid 0, net -18900
+    expect(result.people[jibin.id].net).toBe(-18900)
+    expect(result.people[smeety.id].net).toBe(-18900)
+
+    // Check settlements: Smeety pays Jijo ₹24!
+    const toJijo = result.settlements.filter((s) => s.toPersonId === jijo.id)
+    expect(toJijo.length).toBe(1)
+    expect(toJijo[0].fromPersonId).toBe(smeety.id)
+    expect(toJijo[0].amount).toBe(2400)
+
+    // Sindhu receives 18900 + 16500 = 35400
+    const toSindhu = result.settlements.filter((s) => s.toPersonId === sindhu.id)
+    const sindhuTotal = toSindhu.reduce((sum, s) => sum + s.amount, 0)
+    expect(sindhuTotal).toBe(35400)
+  })
 })
 

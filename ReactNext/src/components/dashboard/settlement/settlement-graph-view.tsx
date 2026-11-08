@@ -36,12 +36,12 @@ export function SettlementGraphView({
   isPaidBalanced = true,
   onAutoBalance,
 }: SettlementGraphViewProps) {
-  const displayHeadsKey = displayHeads.map((h) => h.id).join(',')
+  const displayNodesKey = `${displayHeads.map((h) => h.id).join(',')}_${displayDebtors.map((d) => d.id).join(',')}`
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const { graphContainerRef, arrowPaths, personOf } = useSettlementArrows(
     bill,
     activeResult,
-    displayHeadsKey
+    displayNodesKey
   )
 
   return (
@@ -134,12 +134,25 @@ export function SettlementGraphView({
                   HEAD PAYER — Paid {formatMoney(paid, bill.currency)}
                 </div>
 
-                <div className="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#d1fae5] border border-[#a7f3d0] px-5 py-2 text-xs sm:text-sm font-bold text-[#065f46] shadow-2xs">
-                  <span className="font-medium text-xs sm:text-sm">Collects back</span>
-                  <span className="font-black text-sm sm:text-base tabular-nums">
-                    {formatMoney(net > 0 ? net : incomingTotal, bill.currency)}
-                  </span>
-                </div>
+                {net > 0 ? (
+                  <div className="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#d1fae5] border border-[#a7f3d0] px-5 py-2 text-xs sm:text-sm font-bold text-[#065f46] shadow-2xs">
+                    <span className="font-medium text-xs sm:text-sm">Collects back</span>
+                    <span className="font-black text-sm sm:text-base tabular-nums">
+                      {formatMoney(net, bill.currency)}
+                    </span>
+                  </div>
+                ) : net < 0 ? (
+                  <div className="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-50 border border-amber-300 px-5 py-2 text-xs sm:text-sm font-bold text-amber-800 shadow-2xs">
+                    <span className="font-medium text-xs sm:text-sm">Still owes</span>
+                    <span className="font-black text-sm sm:text-base tabular-nums">
+                      {formatMoney(-net, bill.currency)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-full bg-zinc-100 border border-zinc-300 px-5 py-2 text-xs sm:text-sm font-bold text-zinc-700 shadow-2xs">
+                    <span className="font-medium text-xs sm:text-sm">Fully settled</span>
+                  </div>
+                )}
               </div>
             )
           })}

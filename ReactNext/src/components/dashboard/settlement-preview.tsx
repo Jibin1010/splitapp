@@ -35,7 +35,7 @@ export function SettlementPreview() {
   const [showPayerSetup, setShowPayerSetup] = React.useState(true)
   const [previewOpen, setPreviewOpen] = React.useState(false)
 
-  const activeResult = result || preview
+  const activeResult = result && !resultIsStale ? result : preview
   const transfersTotal = activeResult ? activeResult.settlements.reduce((sum, s) => sum + s.amount, 0) : 0
 
   // Financial reconciliation of who paid what
@@ -102,8 +102,8 @@ export function SettlementPreview() {
   })
 
   const handleExportCsv = () => {
-    if (!result) return
-    const csv = buildCsv(bill, result)
+    if (!activeResult) return
+    const csv = buildCsv(bill, activeResult)
     const filename =
       `${(bill.name || 'shared-bill').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}` ||
       'shared-bill'
@@ -210,11 +210,11 @@ export function SettlementPreview() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!result} className="gap-1.5 text-xs">
+            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!activeResult} className="gap-1.5 text-xs">
               <Download aria-hidden className="size-3.5" />
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={printResults} disabled={!result} className="gap-1.5 text-xs">
+            <Button variant="outline" size="sm" onClick={printResults} disabled={!activeResult} className="gap-1.5 text-xs">
               <Printer aria-hidden className="size-3.5" />
               Print
             </Button>

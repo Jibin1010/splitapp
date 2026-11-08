@@ -16,7 +16,7 @@ export interface ArrowPath {
 export function useSettlementArrows(
   bill: Bill,
   activeResult: CalculationResult,
-  displayHeadsKey: string
+  displayNodesKey: string
 ) {
   const graphContainerRef = React.useRef<HTMLDivElement>(null)
   const [arrowPaths, setArrowPaths] = React.useState<ArrowPath[]>([])
@@ -49,7 +49,12 @@ export function useSettlementArrows(
           const fromRect = fromEl.getBoundingClientRect()
           const toRect = toEl.getBoundingClientRect()
 
-          const x1 = fromRect.left + fromRect.width / 2 - containerRect.left
+          const sameTailSettlements = activeResult.settlements.filter((item) => item.fromPersonId === s.fromPersonId)
+          const tailIndex = sameTailSettlements.findIndex((item) => item.toPersonId === s.toPersonId)
+          const tailCount = sameTailSettlements.length
+          const tailOffset = tailCount > 1 ? (tailIndex - (tailCount - 1) / 2) * 28 : 0
+
+          const x1 = fromRect.left + fromRect.width / 2 - containerRect.left + tailOffset
           const y1 = fromRect.top - containerRect.top
 
           const sameHeadSettlements = activeResult.settlements.filter((item) => item.toPersonId === s.toPersonId)
@@ -122,7 +127,7 @@ export function useSettlementArrows(
       window.removeEventListener('resize', updateArrows)
       if (observer) observer.disconnect()
     }
-  }, [activeResult?.settlements, bill.people, bill.headTailPreferences, displayHeadsKey])
+  }, [activeResult?.settlements, bill.people, bill.headTailPreferences, displayNodesKey])
 
   return { graphContainerRef, arrowPaths, personOf }
 }
