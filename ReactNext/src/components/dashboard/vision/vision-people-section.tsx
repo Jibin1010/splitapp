@@ -109,12 +109,12 @@ export function VisionPeopleSection({
     e.preventDefault()
     if (showSuggestions && highlightedIndex >= 0 && highlightedIndex < activeSuggestions.length) {
       handlePick(activeSuggestions[highlightedIndex])
+    } else if (activeSuggestions.length > 0) {
+      handlePick(activeSuggestions[0])
     } else {
       const trimmed = newPersonName.trim()
       if (!trimmed) return
-      onAddPerson(trimmed)
-      setNewPersonName('')
-      setShowSuggestions(false)
+      alert(`"${trimmed}" is not a registered user. Only verified registered accounts can be added to the bill. Please have them Sign Up or Log In first.`)
     }
   }
 
@@ -158,9 +158,11 @@ export function VisionPeopleSection({
             size="sm"
             onClick={() => {
               const trimmed = newPersonName.trim()
-              if (trimmed) {
-                onAddPerson(trimmed)
-                setNewPersonName('')
+              if (!trimmed) return
+              if (activeSuggestions.length > 0) {
+                handlePick(activeSuggestions[0])
+              } else {
+                alert(`"${trimmed}" is not a registered user. Only verified registered accounts can be added. Please have them Sign Up or Log In first.`)
               }
             }}
             className="h-7 text-xs font-semibold gap-1 bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -249,54 +251,84 @@ export function VisionPeopleSection({
           </button>
 
           {/* Floating suggestions dropdown */}
-          {showSuggestions && newPersonName.trim().length > 0 && activeSuggestions.length > 0 && (
-            <div className="absolute left-0 top-full z-50 mt-1 max-h-56 w-full min-w-[280px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl animate-in fade-in-50 zoom-in-95">
-              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-0.5">
-                <span className="flex items-center gap-1.5">
-                  <span>5 Lakh Search ({activeSuggestions.length})</span>
-                  {lastDurationMs !== null && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded">
-                      <Zap className="size-2 text-emerald-600" />
-                      {lastDurationMs}ms
+          {showSuggestions && newPersonName.trim().length > 0 && (
+            <div className="absolute left-0 top-full z-50 mt-1 max-h-60 w-full min-w-[280px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl animate-in fade-in-50 zoom-in-95">
+              {activeSuggestions.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-0.5">
+                    <span className="flex items-center gap-1.5">
+                      <span>Verified Directory ({activeSuggestions.length})</span>
+                      {lastDurationMs !== null && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded">
+                          <Zap className="size-2 text-emerald-600" />
+                          {lastDurationMs}ms
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span className="text-[9px] font-normal lowercase">Enter to pick</span>
-              </div>
-              {activeSuggestions.map((person, index) => (
-                <button
-                  key={`${person.id || person.name}-${person.phone || index}`}
-                  type="button"
-                  onClick={() => handlePick(person)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors cursor-pointer',
-                    index === highlightedIndex
-                      ? 'bg-indigo-600 text-white font-medium shadow-xs'
-                      : 'hover:bg-slate-100 text-slate-800'
-                  )}
-                >
-                  <PersonAvatar name={person.name} photo={person.photo} size="xs" />
-                  <div className="flex-1 min-w-0">
-                    <span className="block truncate font-semibold">{person.name}</span>
-                    {person.phone && (
-                      <span
-                        className={cn(
-                          'flex items-center gap-1 font-mono text-[9px]',
-                          index === highlightedIndex ? 'text-indigo-100' : 'text-emerald-700'
-                        )}
-                      >
-                        <ShieldCheck className="size-2.5 text-emerald-500 shrink-0" />
-                        <span>{formatPhoneDisplay(person.phone)}</span>
-                        <span className="font-bold text-[8px] uppercase">Verified</span>
-                      </span>
-                    )}
+                    <span className="text-[9px] font-normal lowercase">Enter to pick</span>
                   </div>
-                  <span className={cn('text-[10px]', index === highlightedIndex ? 'text-white' : 'text-indigo-600 font-semibold')}>
-                    + Add
-                  </span>
-                </button>
-              ))}
+                  {activeSuggestions.map((person, index) => (
+                    <button
+                      key={`${person.id || person.name}-${person.phone || index}`}
+                      type="button"
+                      onClick={() => handlePick(person)}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors cursor-pointer',
+                        index === highlightedIndex
+                          ? 'bg-indigo-600 text-white font-medium shadow-xs'
+                          : 'hover:bg-slate-100 text-slate-800'
+                      )}
+                    >
+                      <PersonAvatar name={person.name} photo={person.photo} size="xs" />
+                      <div className="flex-1 min-w-0">
+                        <span className="block truncate font-semibold">{person.name}</span>
+                        {person.phone && (
+                          <span
+                            className={cn(
+                              'flex items-center gap-1 font-mono text-[9px]',
+                              index === highlightedIndex ? 'text-indigo-100' : 'text-emerald-700'
+                            )}
+                          >
+                            <ShieldCheck className="size-2.5 text-emerald-500 shrink-0" />
+                            <span>{formatPhoneDisplay(person.phone)}</span>
+                            <span className="font-bold text-[8px] uppercase">Verified</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className={cn('text-[10px]', index === highlightedIndex ? 'text-white' : 'text-indigo-600 font-semibold')}>
+                        + Add
+                      </span>
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <div className="p-3 text-center space-y-1.5">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-amber-100 text-amber-700 mx-auto">
+                    <Users className="size-3.5" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-900">
+                    &ldquo;{newPersonName}&rdquo; is not registered
+                  </p>
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    Only verified registered members can be added. If they want to join, have them sign up or log in.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    <a
+                      href="/register"
+                      className="text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-full shadow-2xs"
+                    >
+                      Sign Up
+                    </a>
+                    <a
+                      href="/login"
+                      className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-full border border-indigo-200"
+                    >
+                      Log In
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </form>

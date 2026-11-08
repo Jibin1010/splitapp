@@ -40,7 +40,7 @@ describe('GET /api/users/search - Strict Auth Protection & Link Closure', () => 
       role: 'member',
     } as any)
 
-    const req = new NextRequest('http://localhost:3000/api/users/search?q=Maya', {
+    const req = new NextRequest('http://localhost:3000/api/users/search?q=Jibin', {
       headers: {
         authorization: 'Bearer valid_mock_session_token',
       },
@@ -50,7 +50,7 @@ describe('GET /api/users/search - Strict Auth Protection & Link Closure', () => 
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.results.length).toBeGreaterThan(0)
-    expect(json.results[0].name.toLowerCase()).toContain('maya')
+    expect(json.results[0].name.toLowerCase()).toContain('jibin')
   })
 
   it('4. should allow authenticated users with valid cloud_session cookie', async () => {
@@ -65,7 +65,7 @@ describe('GET /api/users/search - Strict Auth Protection & Link Closure', () => 
       role: 'member',
     } as any)
 
-    const req = new NextRequest('http://localhost:3000/api/users/search?q=98200', {
+    const req = new NextRequest('http://localhost:3000/api/users/search?q=92072', {
       headers: {
         cookie: 'cloud_session=valid_session_cookie_token_abc',
       },

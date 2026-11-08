@@ -10,9 +10,9 @@ import {
 import { billSchema } from '@/lib/validation'
 import { calculateBill } from '@/lib/calculations'
 
-describe('1,000 Dummy People with Verified Phone Numbers Preset', () => {
-  it('defines exactly 1,000 dummy people with unique names, photos, and verified E.164 phone numbers', () => {
-    expect(DUMMY_PEOPLE_RAW).toHaveLength(1000)
+describe('Verified Primary Users Directory Test Suite', () => {
+  it('defines strictly the 4 verified users with unique names, photos, and verified E.164 phone numbers', () => {
+    expect(DUMMY_PEOPLE_RAW).toHaveLength(4)
 
     const names = new Set<string>()
     const phones = new Set<string>()
@@ -27,13 +27,13 @@ describe('1,000 Dummy People with Verified Phone Numbers Preset', () => {
       phones.add(person.phone)
     }
 
-    expect(names.size).toBe(1000)
-    expect(phones.size).toBe(1000)
+    expect(names.size).toBe(4)
+    expect(phones.size).toBe(4)
   })
 
-  it('generates 1,000 Person objects with unique ids, verified numbers, and zero paid amounts', () => {
+  it('generates Person objects with unique ids, verified numbers, and zero paid amounts', () => {
     const people = get1000DummyPeople()
-    expect(people).toHaveLength(1000)
+    expect(people).toHaveLength(4)
 
     const ids = new Set<string>()
     for (const person of people) {
@@ -44,14 +44,14 @@ describe('1,000 Dummy People with Verified Phone Numbers Preset', () => {
       expect(person.isPhoneVerified).toBe(true)
       ids.add(person.id)
     }
-    expect(ids.size).toBe(1000)
+    expect(ids.size).toBe(4)
   })
 
-  it('creates a clean bill with 0 items, 0 adjustments, and 1,000 people passing schema validation', () => {
+  it('creates a clean bill with 0 items, 0 adjustments, and verified people passing schema validation', () => {
     const bill = create1000PeopleBill('INR')
     expect(bill.items).toHaveLength(0)
     expect(bill.adjustments).toHaveLength(0)
-    expect(bill.people).toHaveLength(1000)
+    expect(bill.people).toHaveLength(4)
 
     const parsed = billSchema.safeParse(bill)
     expect(parsed.success).toBe(true)
@@ -62,23 +62,31 @@ describe('1,000 Dummy People with Verified Phone Numbers Preset', () => {
     expect(calc.settlements).toEqual([])
   })
 
-  it('supports backwards-compatible 50 people generation with verified numbers', () => {
+  it('supports backwards-compatible people generation with verified numbers', () => {
     const people = get50DummyPeople()
-    expect(people).toHaveLength(50)
+    expect(people).toHaveLength(4)
     expect(people.every((p) => p.isPhoneVerified === true && p.phone?.startsWith('+91'))).toBe(true)
   })
 
-  it('searches people suggestions by name and verified phone number', () => {
-    // When typing 'a', returns verified suggestions
-    const aResults = searchPeopleSuggestions('a')
-    expect(aResults.length).toBeGreaterThan(0)
-    expect(aResults[0].isPhoneVerified).toBe(true)
-    expect(aResults[0].phone).toBeDefined()
+  it('searches people suggestions by name and verified phone number, returning only verified users', () => {
+    // When typing 's', returns Sindhu and Smeety
+    const sResults = searchPeopleSuggestions('s')
+    expect(sResults.length).toBe(2)
+    expect(sResults.map((p) => p.name)).toEqual(['Sindhu', 'Smeety'])
 
-    // When searching by phone digits e.g. '98200'
-    const phoneResults = searchPeopleSuggestions('98200')
-    expect(phoneResults.length).toBeGreaterThan(0)
-    expect(phoneResults[0].phone).toContain('98200')
+    // When typing 'j', returns Jibin Jijo and Jijo P George
+    const jResults = searchPeopleSuggestions('j')
+    expect(jResults.length).toBe(2)
+    expect(jResults.map((p) => p.name)).toEqual(['Jibin Jijo', 'Jijo P George'])
+
+    // When searching by phone digits e.g. '9207293021'
+    const phoneResults = searchPeopleSuggestions('9207293021')
+    expect(phoneResults.length).toBe(1)
+    expect(phoneResults[0].name).toBe('Jibin Jijo')
+
+    // Arbitrary unverified person e.g. 'Sachin' returns empty
+    const unverifiedResults = searchPeopleSuggestions('Sachin')
+    expect(unverifiedResults).toHaveLength(0)
 
     // Excludes names already in the bill
     const sample = DUMMY_PEOPLE_RAW[0]

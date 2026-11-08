@@ -247,10 +247,22 @@ export function ContactSearchDialog({ open, onOpenChange }: ContactSearchDialogP
                   </p>
                 </div>
               ) : results.length === 0 && !loading && !debouncing ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                  <Info className="size-8 text-zinc-400 stroke-1 mb-1.5" />
-                  <p className="text-sm font-semibold text-zinc-700">No users found for &ldquo;{query}&rdquo;</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">Try searching with another name or phone prefix.</p>
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <div className="flex size-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 mb-2">
+                    <Info className="size-5" />
+                  </div>
+                  <p className="text-sm font-bold text-zinc-900">&ldquo;{query}&rdquo; is not registered</p>
+                  <p className="text-xs text-zinc-500 max-w-sm mt-1">
+                    Only verified registered members can be searched and added to splits. If they want to join, have them sign up or log in.
+                  </p>
+                  <div className="flex items-center gap-2 mt-3.5">
+                    <Button asChild size="sm" className="bg-zinc-900 hover:bg-black text-white text-xs font-semibold rounded-xl px-4">
+                      <a href="/register">Sign Up</a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="border-zinc-200 text-zinc-700 text-xs font-semibold rounded-xl px-4">
+                      <a href="/login">Log In</a>
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 results.map((person) => {

@@ -15,7 +15,7 @@ describe('Google Drive Zero-Knowledge Vault Architecture', () => {
   const testBillId = 'bill-test-drive-vault-12345'
   const testBillName = 'Weekend Goa Trip'
   const ownerIdentityId = 'user-owner-001'
-  const groupMemberName = 'Maya Sharma'
+  const groupMemberName = 'Jibin Jijo'
   const outsiderName = 'Random Stranger'
 
   it('1. should create or locate dedicated Google Drive folder: SplitLedger Vault - [Group Name]', async () => {

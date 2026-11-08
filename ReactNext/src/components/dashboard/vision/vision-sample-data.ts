@@ -2,11 +2,34 @@ import { getRandomAvatarForName } from '@/lib/dummy-people'
 import type { DialogPerson, EditableDetectedItem, VisionApiResponse } from './vision-types'
 
 export const SAMPLE_PEOPLE: DialogPerson[] = [
-  { id: 'person-sandeep', name: 'Sandeep Chawla', photo: getRandomAvatarForName('Sandeep Chawla') },
-  { id: 'person-aarav', name: 'Aarav Patel', photo: getRandomAvatarForName('Aarav Patel') },
-  { id: 'person-farhan', name: 'Farhan Akhtar', photo: getRandomAvatarForName('Farhan Akhtar') },
-  { id: 'person-fatima', name: 'Fatima Sana', photo: getRandomAvatarForName('Fatima Sana') },
-  { id: 'person-radhika', name: 'Radhika Soni', photo: getRandomAvatarForName('Radhika Soni') },
+  {
+    id: 'person-jibin',
+    name: 'Jibin Jijo',
+    phone: '+919207293021',
+    isPhoneVerified: true,
+    photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'person-sindhu',
+    name: 'Sindhu',
+    phone: '+919400986188',
+    isPhoneVerified: true,
+    photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'person-smeety',
+    name: 'Smeety',
+    phone: '+919188724538',
+    isPhoneVerified: true,
+    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'person-jijo',
+    name: 'Jijo P George',
+    phone: '+919847416607',
+    isPhoneVerified: true,
+    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+  },
 ]
 
 export const SAMPLE_ITEMS: EditableDetectedItem[] = [
@@ -16,7 +39,7 @@ export const SAMPLE_ITEMS: EditableDetectedItem[] = [
     quantity: 3,
     unitPricePaise: 18000,
     totalPaise: 54000,
-    assignedParticipantIds: ['person-sandeep', 'person-aarav', 'person-farhan', 'person-fatima', 'person-radhika'],
+    assignedParticipantIds: ['person-jibin', 'person-sindhu', 'person-smeety', 'person-jijo'],
   },
   {
     id: 'sample-item-2',
@@ -24,7 +47,7 @@ export const SAMPLE_ITEMS: EditableDetectedItem[] = [
     quantity: 1,
     unitPricePaise: 12000,
     totalPaise: 12000,
-    assignedParticipantIds: ['person-fatima', 'person-radhika', 'person-sandeep'],
+    assignedParticipantIds: ['person-sindhu', 'person-smeety'],
   },
 ]
 
