@@ -153,4 +153,68 @@ Grand Total 693.00
     expect(result.items[0].unitPricePaise).toBe(18000)
     expect(result.items[0].totalPaise).toBe(54000)
   })
+
+  it('correctly parses receipts with currency symbols and prefix quantities (e.g. 3x, 1x)', () => {
+    const rawWithPrefix = `
+\`\`\`raw_text
+THE DAILY GRIND RESTAURANT & CAFE
+Date: 08-Nov-2026
+3x Chicken Biriyani ₹540.00
+1x Meals ₹120.00
+Subtotal: ₹660.00
+GST: ₹33.00
+Total: ₹693.00
+\`\`\`
+`
+    const result = parseReceiptResponse(rawWithPrefix)
+    expect(result.items).toHaveLength(2)
+    expect(result.items[0].name).toBe('Chicken Biriyani')
+    expect(result.items[0].quantity).toBe(3)
+    expect(result.items[0].totalPaise).toBe(54000)
+    expect(result.items[1].name).toBe('Meals')
+    expect(result.items[1].quantity).toBe(1)
+    expect(result.items[1].totalPaise).toBe(12000)
+  })
+
+  it('parses JSON with products key and trailing commas gracefully', () => {
+    const jsonProducts = `
+\`\`\`json
+{
+  "vendor": "Duniyav Bir",
+  "products": [
+    { "name": "Chicken Biriyani", "quantity": 3, "unit_price": 180, "total": 540, },
+    { "name": "Meals", "quantity": 1, "unit_price": 120, "total": 120, },
+  ],
+  "subtotal": 660,
+  "grand_total": 693,
+}
+\`\`\`
+`
+    const result = parseReceiptResponse(jsonProducts)
+    expect(result.items).toHaveLength(2)
+    expect(result.items[0].name).toBe('Chicken Biriyani')
+    expect(result.items[0].quantity).toBe(3)
+    expect(result.items[0].totalPaise).toBe(54000)
+  })
+
+  it('parses single-price lines without explicit quantity (defaults to 1)', () => {
+    const rawSinglePrice = `
+\`\`\`raw_text
+Restaurant Cafe
+Chicken Biriyani 180.00
+Meals 120.00
+Subtotal 300.00
+Total 300.00
+\`\`\`
+`
+    const result = parseReceiptResponse(rawSinglePrice)
+    expect(result.items).toHaveLength(2)
+    expect(result.items[0].name).toBe('Chicken Biriyani')
+    expect(result.items[0].quantity).toBe(1)
+    expect(result.items[0].unitPricePaise).toBe(18000)
+    expect(result.items[0].totalPaise).toBe(18000)
+    expect(result.items[1].name).toBe('Meals')
+    expect(result.items[1].quantity).toBe(1)
+    expect(result.items[1].unitPricePaise).toBe(12000)
+  })
 })

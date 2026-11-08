@@ -42,7 +42,7 @@ async function callNvidiaModel(
           ],
         },
       ],
-      max_tokens: 1200,
+      max_tokens: 2048,
       temperature: 0.1,
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -57,10 +57,9 @@ async function callNvidiaModel(
 
   const data = await upstreamRes.json()
   const message = data?.choices?.[0]?.message
-  const description: string =
-    message?.content ||
-    message?.reasoning_content ||
-    ''
+  const content = (message?.content || '').trim()
+  const reasoning = (message?.reasoning_content || '').trim()
+  const description: string = content || reasoning || ''
   return { description, durationMs }
 }
 
@@ -215,8 +214,8 @@ Enclose the JSON inside:
   let description = ''
   let durationMs = 0
 
-  // Generous timeout for precision vision OCR inference
-  const primaryTimeout = 28000
+  // Safe timeout for vision OCR inference within serverless execution window
+  const primaryTimeout = 20000
 
   // 1. Try Primary Model
   try {
@@ -243,7 +242,7 @@ Enclose the JSON inside:
           image,
           apiKey,
           apiBaseUrl,
-          25000
+          18000
         )
         description = fallbackResult.description
         durationMs = fallbackResult.durationMs

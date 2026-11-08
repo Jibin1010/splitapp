@@ -66,10 +66,10 @@ export const AVAILABLE_MODELS: VisionModelOption[] = [
     isRecommended: false,
   },
   {
-    id: 'nvidia/nemotron-parse-2.0',
-    name: 'Nemotron Parse 2.0',
-    badge: 'Fast OCR',
-    subtitle: 'Ultra fast document parsing for receipts',
+    id: 'meta/llama-3.2-90b-vision-instruct',
+    name: 'Meta Llama 3.2 90B Vision',
+    badge: 'High Accuracy',
+    subtitle: 'Deep visual document understanding & extraction',
     isRecommended: false,
   },
 ]

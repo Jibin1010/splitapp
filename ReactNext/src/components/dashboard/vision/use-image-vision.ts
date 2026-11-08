@@ -58,8 +58,21 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
   }, [loading])
 
   React.useEffect(() => {
-    if (open) setClearExistingBeforeImport(true)
-  }, [open])
+    if (open) {
+      setClearExistingBeforeImport(true)
+      if (state.bill.people.length > 0) {
+        setDialogPeople(
+          state.bill.people.map((p) => ({
+            id: p.id,
+            name: p.name,
+            photo: p.photo,
+            phone: p.phone,
+            isPhoneVerified: p.isPhoneVerified,
+          }))
+        )
+      }
+    }
+  }, [open, state.bill.people])
 
   React.useEffect(() => {
     if (dialogPeople.length > 0 && (!payerPersonId || !dialogPeople.some((p) => p.id === payerPersonId))) {
@@ -112,6 +125,7 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
   }, [headPersonIds, totalBillRupees])
 
   React.useEffect(() => {
+    const defaultAssigned = dialogPeople.length > 0 ? dialogPeople.map((p) => p.id) : []
     if (result?.prepopulatedItems && result.prepopulatedItems.length > 0) {
       setItemsList(result.prepopulatedItems)
     } else if (result?.detectedItems) {
@@ -119,7 +133,7 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
         result.detectedItems.map((item, idx) => ({
           ...item,
           id: `item-${idx}-${Date.now()}`,
-          assignedParticipantIds: [],
+          assignedParticipantIds: defaultAssigned,
         }))
       )
     } else {
@@ -132,11 +146,12 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
       setApplyTax(detectedTax > 0)
       setActiveTab('products')
     }
-  }, [result])
+  }, [result, dialogPeople])
 
   const handleFileSelect = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file (PNG, JPEG, WEBP).')
+    const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|heif|bmp|svg)$/i.test(file.name)
+    if (!isImage) {
+      alert('Please upload a valid image file (PNG, JPEG, WEBP, HEIC).')
       return
     }
     setImageName(file.name)
@@ -149,18 +164,22 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
       setImageSrc(compressed.dataUrl)
       const sizeKb = Math.round(compressed.sizeBytes / 1024)
       setImageMeta(`${compressed.width} × ${compressed.height} · ${sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)}MB` : `${sizeKb}KB`}`)
+      void handleAnalyze(undefined, compressed.dataUrl)
     } catch {
       const reader = new FileReader()
       reader.onload = (e) => {
-        setImageSrc(e.target?.result as string)
+        const src = e.target?.result as string
+        setImageSrc(src)
         setImageMeta('Ready for OCR')
+        void handleAnalyze(undefined, src)
       }
       reader.readAsDataURL(file)
     }
   }
 
-  const handleAnalyze = async (overrideModel?: string) => {
-    if (!imageSrc) return
+  const handleAnalyze = async (overrideModel?: string, overrideImageSrc?: string) => {
+    const srcToUse = overrideImageSrc || imageSrc
+    if (!srcToUse) return
     const modelToUse = overrideModel || selectedModel
     if (overrideModel) setSelectedModel(overrideModel)
 
@@ -179,7 +198,7 @@ export function useImageVision(open: boolean, onOpenChange: (open: boolean) => v
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image: imageSrc,
+          image: srcToUse,
           prompt: activePrompt,
           model: modelToUse,
         }),

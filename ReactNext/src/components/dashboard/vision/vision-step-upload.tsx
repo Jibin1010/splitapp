@@ -9,6 +9,7 @@ import {
   Trash2,
   Lock,
   ShieldCheck,
+  Camera,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LottieScannerAnimation } from '@/components/ui/lottie-scanner'
@@ -41,6 +42,8 @@ export function VisionStepUpload({
   onReset,
   setDragOver,
 }: VisionStepUploadProps) {
+  const cameraInputRef = React.useRef<HTMLInputElement | null>(null)
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
@@ -59,7 +62,7 @@ export function VisionStepUpload({
           <div>
             <h3 className="text-sm font-bold text-slate-900">Upload Receipt Image</h3>
             <p className="text-[11px] text-slate-500 font-normal">
-              Supports PNG, JPG, JPEG, WEBP photos of any receipt or invoice.
+              Supports PNG, JPG, JPEG, WEBP, HEIC photos of any receipt or invoice.
             </p>
           </div>
         </div>
@@ -77,17 +80,37 @@ export function VisionStepUpload({
           </Button>
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => cameraInputRef.current?.click()}
+            className="gap-1.5 text-xs font-semibold bg-white border-slate-200/90 hover:bg-slate-50 shadow-2xs text-slate-800"
+          >
+            <Camera className="size-3.5 text-indigo-600" />
+            Camera
+          </Button>
+          <Button
+            type="button"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
             className="gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
           >
             <UploadCloud className="size-3.5" />
-            Upload New
+            Upload Photo
           </Button>
+          <input
+            ref={cameraInputRef as React.LegacyRef<HTMLInputElement>}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) onFileSelect(e.target.files[0])
+            }}
+          />
           <input
             ref={fileInputRef as React.LegacyRef<HTMLInputElement>}
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/jpg"
+            accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.svg"
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.[0]) onFileSelect(e.target.files[0])

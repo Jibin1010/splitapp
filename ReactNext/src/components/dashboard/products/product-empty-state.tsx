@@ -32,12 +32,12 @@ export function ProductEmptyState({
           Add the first item from your bill — name, quantity and unit price. You can assign people to each
           product afterwards.
         </p>
-        {onOpenVision && isHeadUser && (
+        {onOpenVision && (
           <Button
             variant="outline"
             size="sm"
             onClick={onOpenVision}
-            className="mt-2 gap-1.5 border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50 text-xs font-medium"
+            className="mt-2 gap-1.5 border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50 text-xs font-semibold cursor-pointer shadow-2xs"
           >
             <Sparkles className="size-3.5 text-indigo-500" aria-hidden />
             Upload Bill / Describe Image
