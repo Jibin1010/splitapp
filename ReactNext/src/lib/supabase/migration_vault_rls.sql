@@ -45,3 +45,4 @@ CREATE POLICY "Strict server-only vault keys"
     WITH CHECK (true);
 
 COMMIT;
+

@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { ArrowUp, Sparkles, TriangleAlert } from 'lucide-react'
+import { ArrowUp, Sparkles, TriangleAlert, Receipt, Eye } from 'lucide-react'
 import { formatMoney, formatTransferMoney } from '@/lib/money'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { cn } from '@/lib/utils'
 import type { Bill, CalculationResult, Person } from '@/types/split'
 import { useSettlementArrows } from './use-settlement-arrows'
+import { BillPreviewDialog } from '../vault/bill-preview-dialog'
 
 interface SettlementGraphViewProps {
   bill: Bill
@@ -36,6 +37,7 @@ export function SettlementGraphView({
   onAutoBalance,
 }: SettlementGraphViewProps) {
   const displayHeadsKey = displayHeads.map((h) => h.id).join(',')
+  const [previewOpen, setPreviewOpen] = React.useState(false)
   const { graphContainerRef, arrowPaths, personOf } = useSettlementArrows(
     bill,
     activeResult,
@@ -225,9 +227,29 @@ export function SettlementGraphView({
         })}
       </div>
 
-      <p className="text-center text-xs sm:text-sm font-medium text-zinc-500 mt-6 tracking-wide">
-        Settlement graph · bottom pays head payer
-      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3.5 mt-6">
+        <p className="text-xs sm:text-sm font-medium text-zinc-500 tracking-wide">
+          Settlement graph · bottom pays head payer
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100/90 text-indigo-700 px-3 py-1 text-xs font-bold transition-all shadow-2xs cursor-pointer group hover:border-indigo-300"
+          title="View Bill Preview (Google Drive)"
+        >
+          <Receipt className="size-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
+          <span>View Bill Preview</span>
+          {bill.vaultFile && (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded-full border border-emerald-200">
+              Drive 🔒
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Bill Preview Modal (Google Drive Encrypted Vault & Digital Receipt) */}
+      <BillPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
 
       {/* Settled Participants */}
       {settledPeople.length > 0 && (

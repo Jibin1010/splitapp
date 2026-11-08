@@ -7,6 +7,7 @@ import {
   Clock,
   Crown,
   Download,
+  Eye,
   GitFork,
   Printer,
   RefreshCw,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { SettlementPayerSetup } from './settlement/settlement-payer-setup'
 import { SettlementGraphView } from './settlement/settlement-graph-view'
 import { SettlementTableView } from './settlement/settlement-table-view'
+import { BillPreviewDialog } from './vault/bill-preview-dialog'
 
 export function SettlementPreview() {
   const { state, dispatch, calculate, resultIsStale, preview, activePerson } = useBillStore()
@@ -31,6 +33,7 @@ export function SettlementPreview() {
   const result = state.result
   const [viewMode, setViewMode] = React.useState<'graph' | 'table'>('graph')
   const [showPayerSetup, setShowPayerSetup] = React.useState(true)
+  const [previewOpen, setPreviewOpen] = React.useState(false)
 
   const activeResult = result || preview
   const transfersTotal = activeResult ? activeResult.settlements.reduce((sum, s) => sum + s.amount, 0) : 0
@@ -190,6 +193,20 @@ export function SettlementPreview() {
               <SlidersHorizontal className="size-3.5" />
               {showPayerSetup ? 'Hide Payer Setup' : 'Edit Who Paid Bill'}
             </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewOpen(true)}
+              className="gap-1.5 text-xs text-indigo-700 border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100"
+              title="Preview Bill & Google Drive Receipt"
+            >
+              <Eye className="size-3.5 text-indigo-600" />
+              <span>Bill Preview</span>
+              {bill.vaultFile && (
+                <span className="size-1.5 rounded-full bg-emerald-500" title="Backed up to Google Drive" />
+              )}
+            </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -291,6 +308,9 @@ export function SettlementPreview() {
             activePerson={activePerson}
           />
         )}
+
+        {/* Bill Preview Modal (Google Drive Encrypted Vault & Digital Receipt) */}
+        <BillPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
       </div>
     </details>
   )
