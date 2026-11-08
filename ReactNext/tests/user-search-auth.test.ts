@@ -77,3 +77,4 @@ describe('GET /api/users/search - Strict Auth Protection & Link Closure', () => 
     expect(json.results.length).toBeGreaterThan(0)
   })
 })
+
