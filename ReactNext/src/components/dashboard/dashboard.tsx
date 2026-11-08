@@ -14,7 +14,6 @@ import { BillSplitBreakdown } from '@/components/dashboard/bill-split-breakdown'
 import { UserPerspectiveBar, PersonalSpotlightCard } from '@/components/dashboard/user-perspective-bar'
 import { UserSwitcherDialog } from '@/components/dashboard/user-switcher-dialog'
 import { ContactSearchDialog } from '@/components/dashboard/contact-search-dialog'
-import { BillVaultCard } from '@/components/dashboard/vault/bill-vault-card'
 
 /**
  * The whole user journey lives on one dashboard: summary figures, the
@@ -74,7 +73,6 @@ export function DashboardShell() {
       <main className="relative z-10 mx-auto w-full max-w-7xl space-y-4 p-4 sm:space-y-6 sm:p-6">
         <UserPerspectiveBar onOpenSwitcher={openSwitcher} />
         <PersonalSpotlightCard onOpenSwitcher={openSwitcher} />
-        <BillVaultCard onOpenVision={openVision} />
         <SummaryCards />
         <ProductsTable onOpenVision={openVision} />
         <BillSplitBreakdown />
