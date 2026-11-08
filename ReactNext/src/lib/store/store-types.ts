@@ -47,7 +47,7 @@ export type StoreAction =
   | {
       type: 'IMPORT_ANALYSIS_RESULT'
       items: ProductItem[]
-      people?: Array<{ id?: string; name: string; photo?: string; paidAmount?: number }>
+      people?: Array<{ id?: string; name: string; photo?: string; paidAmount?: number; phone?: string; isPhoneVerified?: boolean }>
       adjustments?: Adjustment[]
       billName?: string
       vendor?: string

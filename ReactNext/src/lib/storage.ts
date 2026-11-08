@@ -42,15 +42,14 @@ function safeSetJson(key: string, value: unknown): boolean {
 export function loadDraft(): Bill | null {
   const draft = safeGetJson<Bill>(DRAFT_KEY)
   if (!draft) return null
-  // Automatically purge legacy mock data or 50 dummy people if stored in browser
-  if (
+  // Only purge legacy mock seed data if it exclusively contains old dummy test accounts
+  const isLegacyMockData =
     Array.isArray(draft.people) &&
-    (draft.people.length >= 9 ||
-      draft.people.some((p) =>
-        ['Maya Sharma', 'Arjun Patel', 'Neha Rao', 'Ravi Kumar', 'Priya Nair'].includes(p.name)
-      ) ||
-      (Array.isArray(draft.items) && draft.items.some((i) => i.name?.toLowerCase().includes('biriyani'))))
-  ) {
+    draft.people.length > 0 &&
+    draft.people.every((p) =>
+      ['Maya Sharma', 'Arjun Patel', 'Neha Rao', 'Ravi Kumar', 'Priya Nair'].includes(p.name)
+    )
+  if (isLegacyMockData) {
     clearDraft()
     return null
   }

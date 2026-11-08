@@ -102,6 +102,88 @@ async function ensureBillsTableSchema() {
 }
 
 /**
+ * Helper to resolve identity ID for a bill participant
+ */
+async function resolvePersonIdentityId(
+  client: any,
+  person: Person,
+  ownerIdentityId: string
+): Promise<string | null> {
+  const cleanId = person.id.replace(/^person-/, '')
+  if (person.id === ownerIdentityId || cleanId === ownerIdentityId || cleanId === ownerIdentityId.replace(/-/g, '').slice(0, 8)) {
+    return ownerIdentityId
+  }
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {
+    return cleanId
+  }
+
+  // 1. Try matching by phone number
+  if (person.phone) {
+    const rawDigits = person.phone.replace(/[^0-9]/g, '')
+    const last10 = rawDigits.slice(-10)
+    if (last10.length === 10) {
+      try {
+        const phoneRows = await client.query(
+          `SELECT identity_id, e164_phone FROM public.phone_whatsapp_identities;`
+        )
+        for (const row of phoneRows.rows) {
+          if (row.e164_phone) {
+            try {
+              const dec = decryptPII(row.e164_phone)
+              if (dec.replace(/[^0-9]/g, '').slice(-10) === last10) {
+                return row.identity_id
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Try matching by display name
+  if (person.name && person.name.trim().length > 1) {
+    const cleanName = person.name.trim().toLowerCase()
+    try {
+      const nameRows = await client.query(
+        `SELECT identity_id, display_name FROM public.identity_profiles;`
+      )
+      for (const row of nameRows.rows) {
+        if (row.display_name) {
+          try {
+            const dec = decryptPII(row.display_name).trim().toLowerCase()
+            if (dec === cleanName) {
+              return row.identity_id
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  return null
+}
+
+function findInMemoryMemberBill(identityId: string, displayName?: string): Bill | null {
+  const cleanName = displayName?.trim().toLowerCase()
+  for (const [_, bill] of memoryUserBills.entries()) {
+    if (bill && Array.isArray(bill.people)) {
+      const isMember = bill.people.some((p) => {
+        if (p.id === identityId || p.id === `person-${identityId}`) return true
+        if (cleanName && p.name.trim().toLowerCase() === cleanName) return true
+        return false
+      })
+      if (isMember) {
+        billMembers.get(bill.id)?.add(identityId)
+        if (cleanName) billMembers.get(bill.id)?.add(cleanName)
+        return bill
+      }
+    }
+  }
+  return null
+}
+
+/**
  * Retrieves the active bill for an authenticated user.
  * Guarantees that only bills owned by or shared with this user are returned.
  */
@@ -111,16 +193,29 @@ export async function getActiveBillForUser(
 ): Promise<Bill> {
   await ensureBillsTableSchema()
 
-  // 1. Check PostgreSQL Database for the user's latest owned bill
+  // 1. Check in-memory fast cache first
+  if (memoryUserBills.has(identityId)) {
+    return memoryUserBills.get(identityId)!
+  }
+
+  const memoryMemberBill = findInMemoryMemberBill(identityId, profile?.name)
+  if (memoryMemberBill) {
+    memoryUserBills.set(identityId, memoryMemberBill)
+    return memoryMemberBill
+  }
+
+  // 2. Check PostgreSQL Database for bill where user is owner or participant member
   if (!isTestEnv) {
     try {
       const client = await pool.connect()
       try {
         const res = await client.query(
-          `SELECT id, title, currency, data, updated_at 
-           FROM public.bills 
-           WHERE owner_identity_id = $1 
-           ORDER BY updated_at DESC 
+          `SELECT DISTINCT b.id, b.owner_identity_id, b.title, b.currency, b.data, b.updated_at 
+           FROM public.bills b
+           LEFT JOIN public.bill_people bp ON bp.bill_id = b.id
+           WHERE b.owner_identity_id = $1 
+              OR bp.identity_id = $1
+           ORDER BY b.updated_at DESC 
            LIMIT 1;`,
           [identityId]
         )
@@ -129,22 +224,68 @@ export async function getActiveBillForUser(
           const row = res.rows[0]
           if (row.data && Array.isArray(row.data.people) && row.data.people.length > 0) {
             const rawBill = row.data as Bill
-            // Transparently decrypt stored PII names from database
             const dbBill = decryptBillFromStorage(rawBill)
-            // Sanitize: ensure no mock people leaked
-            const isMock = dbBill.people.some((p) =>
+            const isMock = dbBill.people.every((p) =>
               ['Maya Sharma', 'Arjun Patel', 'Neha Rao', 'Ravi Kumar'].includes(p.name)
             )
             if (!isMock) {
               memoryUserBills.set(identityId, dbBill)
-              billOwnership.set(dbBill.id, identityId)
-              const members = new Set<string>([identityId])
+              billOwnership.set(dbBill.id, row.owner_identity_id || identityId)
+              const members = new Set<string>([identityId, row.owner_identity_id].filter(Boolean))
               dbBill.people.forEach((p) => {
                 members.add(p.id)
                 members.add(p.name.toLowerCase())
                 members.add(encryptPII(p.name).toLowerCase())
               })
               billMembers.set(dbBill.id, members)
+              return dbBill
+            }
+          }
+        }
+
+        // 3. Fallback database scan: match group membership by phone or name in recent bills
+        let userPhone: string | null = null
+        try {
+          const phRes = await client.query(
+            `SELECT e164_phone FROM public.phone_whatsapp_identities WHERE identity_id = $1 LIMIT 1;`,
+            [identityId]
+          )
+          if (phRes.rows.length > 0 && phRes.rows[0].e164_phone) {
+            userPhone = decryptPII(phRes.rows[0].e164_phone).replace(/[^0-9]/g, '').slice(-10)
+          }
+        } catch {}
+
+        const recentBills = await client.query(
+          `SELECT id, owner_identity_id, title, currency, data, updated_at 
+           FROM public.bills 
+           ORDER BY updated_at DESC 
+           LIMIT 10;`
+        )
+
+        const cleanName = profile?.name?.trim().toLowerCase()
+        for (const row of recentBills.rows) {
+          if (row.data && Array.isArray(row.data.people) && row.data.people.length > 0) {
+            const dbBill = decryptBillFromStorage(row.data as Bill)
+            const matchedPerson = dbBill.people.find((p) => {
+              if (p.id === identityId || p.id === `person-${identityId}`) return true
+              if (cleanName && p.name.trim().toLowerCase() === cleanName) return true
+              if (userPhone && p.phone && p.phone.replace(/[^0-9]/g, '').slice(-10) === userPhone) return true
+              return false
+            })
+
+            if (matchedPerson) {
+              // Permanently link identity_id in bill_people for fast indexing
+              const encryptedName = encryptPII(matchedPerson.name)
+              await client.query(
+                `INSERT INTO public.bill_people (id, bill_id, identity_id, name)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (bill_id, name) DO UPDATE 
+                 SET identity_id = EXCLUDED.identity_id;`,
+                [toDbUuid(matchedPerson.id), toDbUuid(dbBill.id), identityId, encryptedName]
+              ).catch(() => {})
+
+              memoryUserBills.set(identityId, dbBill)
+              billOwnership.set(dbBill.id, row.owner_identity_id || identityId)
               return dbBill
             }
           }
@@ -157,12 +298,7 @@ export async function getActiveBillForUser(
     }
   }
 
-  // 2. Check in-memory store
-  if (memoryUserBills.has(identityId)) {
-    return memoryUserBills.get(identityId)!
-  }
-
-  // 3. If no bill exists yet, create an isolated clean bill for this user
+  // 4. If no bill exists yet, create an isolated clean bill for this user
   const newBill = createCleanUserBill(identityId, profile?.name || 'You', profile?.avatarUrl)
   memoryUserBills.set(identityId, newBill)
 
@@ -199,11 +335,15 @@ export async function saveActiveBillForUser(
   await ensureBillsTableSchema()
 
   // 1. Multi-Tenant Authorization Check
-  // Check memory ownership
+  // Check memory ownership & membership
   const knownOwner = billOwnership.get(bill.id)
   if (knownOwner && knownOwner !== identityId) {
     const members = billMembers.get(bill.id)
-    if (!members || !members.has(identityId)) {
+    const isMemberInMemory =
+      (members && (members.has(identityId) || members.has(toDbUuid(identityId)))) ||
+      (Array.isArray(bill.people) && bill.people.some((p) => p.id === identityId || p.id === `person-${identityId}`))
+
+    if (!isMemberInMemory) {
       return {
         success: false,
         bill,
@@ -231,11 +371,16 @@ export async function saveActiveBillForUser(
               [toDbUuid(bill.id), identityId]
             )
             if (memberCheck.rows.length === 0) {
-              return {
-                success: false,
-                bill,
-                error: 'Forbidden: You are not authorized to update this bill.',
-                status: 403,
+              const isParticipantInPayload =
+                Array.isArray(bill.people) &&
+                bill.people.some((p) => p.id === identityId || p.id === `person-${identityId}`)
+              if (!isParticipantInPayload) {
+                return {
+                  success: false,
+                  bill,
+                  error: 'Forbidden: You are not authorized to update this bill.',
+                  status: 403,
+                }
               }
             }
           }
@@ -256,8 +401,9 @@ export async function saveActiveBillForUser(
 
   // Update memory state
   memoryUserBills.set(identityId, updatedBill)
-  billOwnership.set(updatedBill.id, identityId)
-  const currentMembers = new Set<string>([identityId])
+  billOwnership.set(updatedBill.id, knownOwner || identityId)
+  const currentMembers = billMembers.get(updatedBill.id) || new Set<string>()
+  currentMembers.add(identityId)
   if (Array.isArray(updatedBill.people)) {
     updatedBill.people.forEach((p) => {
       currentMembers.add(p.id)
@@ -282,23 +428,31 @@ export async function saveActiveBillForUser(
                updated_at = clock_timestamp();`,
           [
             toDbUuid(updatedBill.id),
-            identityId,
+            knownOwner || identityId,
             updatedBill.name || 'Group Split',
             updatedBill.currency,
             JSON.stringify(encryptedBillForDb),
           ]
         )
 
-        // Sync bill_people relational members with zero-knowledge encrypted names
+        // Sync bill_people relational members with zero-knowledge encrypted names and resolved identities
         if (Array.isArray(updatedBill.people)) {
           for (const person of updatedBill.people) {
             const encryptedName = encryptPII(person.name)
+            const resolvedId = await resolvePersonIdentityId(client, person, identityId)
+
             await client.query(
-              `INSERT INTO public.bill_people (id, bill_id, name)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (bill_id, name) DO NOTHING;`,
-              [toDbUuid(person.id), toDbUuid(updatedBill.id), encryptedName]
+              `INSERT INTO public.bill_people (id, bill_id, identity_id, name)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (bill_id, name) DO UPDATE 
+               SET identity_id = COALESCE(EXCLUDED.identity_id, public.bill_people.identity_id);`,
+              [toDbUuid(person.id), toDbUuid(updatedBill.id), resolvedId, encryptedName]
             ).catch(() => {})
+
+            if (resolvedId) {
+              currentMembers.add(resolvedId)
+              memoryUserBills.set(resolvedId, updatedBill)
+            }
           }
         }
       } finally {

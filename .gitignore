@@ -21,6 +21,8 @@ steam-glass*.json
 google drive api/
 
 # Node.js & Next.js
+.vite/
+ReactNext/.vite/
 node_modules/
 ReactNext/node_modules/
 .next/

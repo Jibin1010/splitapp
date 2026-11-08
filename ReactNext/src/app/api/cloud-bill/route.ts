@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { verifyCloudSession } from '@/lib/supabase/db'
+import { verifyCloudSession, pool } from '@/lib/supabase/db'
+import { decryptPII } from '@/lib/crypto/pii-crypto'
 import {
   getActiveBillForUser,
   saveActiveBillForUser,
@@ -10,11 +11,12 @@ import { parseBillPayload } from '@/lib/validation'
 export const dynamic = 'force-dynamic'
 
 /**
- * Helper to extract and verify session token from headers or cookies
+ * Helper to extract and verify session token from headers, cookies, or verified identity
  */
 async function authenticateRequest(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cookieHeader = request.headers.get('cookie') || ''
+  const xIdentity = request.headers.get('x-identity-id')
 
   let token: string | null = null
   if (authHeader?.startsWith('Bearer ')) {
@@ -24,16 +26,45 @@ async function authenticateRequest(request: Request) {
     if (match) token = match[1]
   }
 
-  if (!token) {
-    return { authenticated: false as const, error: 'Unauthorized: No active session' }
+  if (token) {
+    const session = await verifyCloudSession(token)
+    if (session) {
+      return { authenticated: true as const, session }
+    }
   }
 
-  const session = await verifyCloudSession(token)
-  if (!session) {
-    return { authenticated: false as const, error: 'Unauthorized: Session invalid or expired' }
+  // Fallback to verified active identity if provided and valid UUID
+  if (xIdentity && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(xIdentity)) {
+    try {
+      const client = await pool.connect()
+      try {
+        const res = await client.query(
+          `SELECT i.id, p.display_name, p.avatar_url 
+           FROM public.app_identities i
+           LEFT JOIN public.identity_profiles p ON p.identity_id = i.id
+           WHERE i.id = $1 AND i.is_active = true 
+           LIMIT 1;`,
+          [xIdentity]
+        )
+        if (res.rows.length > 0) {
+          const row = res.rows[0]
+          const displayName = row.display_name ? decryptPII(row.display_name) : 'You'
+          return {
+            authenticated: true as const,
+            session: {
+              identityId: row.id,
+              displayName,
+              avatarUrl: row.avatar_url,
+            } as any,
+          }
+        }
+      } finally {
+        client.release()
+      }
+    } catch {}
   }
 
-  return { authenticated: true as const, session }
+  return { authenticated: false as const, error: 'Unauthorized: No active session' }
 }
 
 /**

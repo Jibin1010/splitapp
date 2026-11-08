@@ -42,6 +42,8 @@ export function handleImportAnalysisResult(
         name: p.name.trim(),
         paidAmount: paid,
         photo: p.photo || getRandomAvatarForName(p.name),
+        phone: p.phone,
+        isPhoneVerified: p.isPhoneVerified !== undefined ? p.isPhoneVerified : Boolean(p.phone),
       }
     })
   } else if (action.people && action.people.length > 0) {
@@ -54,6 +56,8 @@ export function handleImportAnalysisResult(
         name: p.name.trim(),
         paidAmount: p.paidAmount || 0,
         photo: p.photo || getRandomAvatarForName(p.name),
+        phone: p.phone,
+        isPhoneVerified: p.isPhoneVerified !== undefined ? p.isPhoneVerified : Boolean(p.phone),
       }))
     newPeople = [...bill.people, ...addedPeople]
   }

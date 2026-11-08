@@ -123,4 +123,66 @@ describe('Server-Side 5NF Multi-Tenant Bill & Group Data Isolation', () => {
     const delRes = await DELETE(delReq)
     expect(delRes.status).toBe(401)
   })
+
+  it('6. should allow group member Bob to access group bill when Bob logs in', async () => {
+    // Alice creates bill and adds Bob Jones
+    const billA = await getActiveBillForUser(userA_id, { name: 'Alice Smith' })
+    billA.name = 'Dinner at Duniyav Bir'
+    billA.people = [
+      { id: billA.people[0].id, name: 'Alice Smith', paidAmount: 69300 },
+      { id: 'person-bob', name: 'Bob Jones', paidAmount: 0 },
+    ]
+    billA.items = [
+      {
+        id: 'item-biriyani',
+        name: 'Chicken Biriyani',
+        quantity: 3,
+        unitPrice: 18000,
+        allocation: { mode: 'equal', participantIds: [billA.people[0].id, 'person-bob'] },
+      },
+    ]
+    await saveActiveBillForUser(userA_id, billA)
+
+    // Bob logs in
+    const userBob_id = 'user-identity-bob-5555'
+    const billBob = await getActiveBillForUser(userBob_id, { name: 'Bob Jones' })
+    expect(billBob).toBeDefined()
+    expect(billBob.id).toBe(billA.id)
+    expect(billBob.name).toBe('Dinner at Duniyav Bir')
+    expect(billBob.items).toHaveLength(1)
+    expect(billBob.items[0].name).toBe('Chicken Biriyani')
+    expect(billBob.people.map((p) => p.name)).toContain('Bob Jones')
+  })
+
+  it('7. should preserve draft on reload without vanishing when real items like Biriyani exist', async () => {
+    const { saveDraft, loadDraft } = await import('@/lib/storage')
+    const testBill: Bill = {
+      id: 'bill-test-reload',
+      name: 'Duniyav Bir #99307',
+      currency: 'INR',
+      items: [
+        {
+          id: 'item-1',
+          name: 'Chicken Biriyani',
+          quantity: 3,
+          unitPrice: 18000,
+          allocation: { mode: 'equal', participantIds: ['person-1', 'person-2'] },
+        },
+      ],
+      people: [
+        { id: 'person-1', name: 'Jibin Jijo', paidAmount: 54000 },
+        { id: 'person-2', name: 'Sindhu', paidAmount: 0 },
+      ],
+      adjustments: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    saveDraft(testBill)
+    const reloaded = loadDraft()
+    expect(reloaded).not.toBeNull()
+    expect(reloaded?.name).toBe('Duniyav Bir #99307')
+    expect(reloaded?.items).toHaveLength(1)
+    expect(reloaded?.items[0].name).toBe('Chicken Biriyani')
+  })
 })

@@ -71,14 +71,20 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
       // 1. If user is logged in, fetch their isolated bill directly from the backend server!
       if (authUser) {
         try {
-          const res = await fetch('/api/cloud-bill')
+          const headers: Record<string, string> = {}
+          if (authUser.token) headers['Authorization'] = `Bearer ${authUser.token}`
+          if (authUser.id) headers['x-identity-id'] = authUser.id
+
+          const res = await fetch('/api/cloud-bill', { headers })
           if (res.ok) {
             const data = await res.json()
             if (data.ok && data.bill && Array.isArray(data.bill.people) && data.bill.people.length > 0) {
+              persistDraft(data.bill)
               const userPerson = data.bill.people.find(
                 (p: Person) =>
-                  p.name.toLowerCase() === authUser.name.toLowerCase() ||
                   p.id === authUser.id ||
+                  (authUser.phone && p.phone && p.phone.replace(/\D/g, '').slice(-10) === authUser.phone.replace(/\D/g, '').slice(-10)) ||
+                  p.name.trim().toLowerCase() === authUser.name.trim().toLowerCase() ||
                   p.id === savedActivePersonId
               )
               const activeId = userPerson ? userPerson.id : data.bill.people[0]?.id || null
@@ -98,9 +104,9 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
         if (authUser) {
           const matched = draft.people.find(
             (p) =>
-              p.name.toLowerCase().includes(authUser.name.toLowerCase()) ||
-              authUser.name.toLowerCase().includes(p.name.toLowerCase()) ||
-              p.id === authUser.id
+              p.id === authUser.id ||
+              (authUser.phone && p.phone && p.phone.replace(/\D/g, '').slice(-10) === authUser.phone.replace(/\D/g, '').slice(-10)) ||
+              p.name.trim().toLowerCase() === authUser.name.trim().toLowerCase()
           )
           if (matched) matchedPersonId = matched.id
         }
@@ -143,18 +149,23 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
   // Autosave: persist the active bill locally & sync to backend server if logged in.
   React.useEffect(() => {
     if (!state.hydrated) return
-    const timer = setTimeout(() => {
-      // 1. Local draft save
-      if (persistDraft(state.bill)) {
-        setDraftSavedAt(new Date().toISOString())
-      }
 
-      // 2. Multi-tenant cloud backend sync
+    // 1. Synchronous instantaneous local draft save — zero data loss on instant reload!
+    if (persistDraft(state.bill)) {
+      setDraftSavedAt(new Date().toISOString())
+    }
+
+    // 2. Debounced multi-tenant cloud backend sync
+    const timer = setTimeout(() => {
       const authUser = getStoredUser()
       if (authUser) {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (authUser.token) headers['Authorization'] = `Bearer ${authUser.token}`
+        if (authUser.id) headers['x-identity-id'] = authUser.id
+
         fetch('/api/cloud-bill', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ bill: state.bill }),
         })
           .then((res) => res.json())
@@ -171,7 +182,7 @@ export function BillStoreProvider({ children }: { children: React.ReactNode }) {
             console.warn('Backend bill sync warning:', err)
           })
       }
-    }, 600)
+    }, 350)
     return () => clearTimeout(timer)
   }, [state.bill, state.hydrated])
 

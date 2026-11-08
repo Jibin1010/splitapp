@@ -4,6 +4,7 @@ export interface AuthUser {
   email: string
   photo?: string | null
   phone?: string | null
+  token?: string | null
   createdAt: string
 }
 
@@ -91,6 +92,8 @@ export async function loginWithCredentials(
         name: data.user.name,
         email: data.user.email,
         photo: data.user.avatarUrl || null,
+        phone: data.unified?.whatsappPhone || data.user.phone || null,
+        token: data.sessionToken || null,
         createdAt: new Date().toISOString(),
       }
       saveStoredUser(authUser)
@@ -175,6 +178,8 @@ export async function registerWithCredentials(
         name: data.user.name,
         email: data.user.email,
         photo: null,
+        phone: data.unified?.whatsappPhone || null,
+        token: data.sessionToken || null,
         createdAt: new Date().toISOString(),
       }
       saveStoredUser(authUser)
@@ -209,6 +214,8 @@ export async function syncGoogleUserToCloud(params: {
         name: data.user.name,
         email: data.user.email,
         photo: data.user.avatarUrl || null,
+        phone: data.unified?.whatsappPhone || data.user.phone || null,
+        token: data.sessionToken || null,
         createdAt: new Date().toISOString(),
       }
       saveStoredUser(authUser)

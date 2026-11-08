@@ -4,7 +4,9 @@ import * as React from 'react'
 import { newId } from '@/lib/id'
 import { getRandomAvatarForName } from '@/lib/dummy-people'
 import { generateVaultKey, encryptReceipt, vaultCiphertextCache } from '@/lib/crypto/vault-crypto'
-import type { Adjustment, ProductItem } from '@/types/split'
+import { saveDraft } from '@/lib/storage'
+import { getStoredUser } from '@/lib/auth'
+import type { Adjustment, ProductItem, Bill } from '@/types/split'
 import type { DialogPerson, EditableDetectedItem, VisionApiResponse } from './vision-types'
 
 interface UseVisionItemsParams {
@@ -217,6 +219,52 @@ export function useVisionItems(params: UseVisionItemsParams) {
       replaceExistingItems: clearExistingBeforeImport,
       replaceExistingPeople: clearExistingBeforeImport && dialogPeople.length > 0,
     })
+
+    // Immediately persist local draft & sync to database without waiting for debounce
+    const immediateBill: Bill = {
+      ...(params.state?.bill || {}),
+      id: params.state?.bill?.id || newId('bill'),
+      name: billName || params.state?.bill?.name || 'Shared Group Bill',
+      vendor,
+      invoiceNumber,
+      date,
+      items: clearExistingBeforeImport ? itemsToImport : [...(params.state?.bill?.items || []), ...itemsToImport],
+      people: (clearExistingBeforeImport && peopleToImport.length > 0)
+        ? peopleToImport.map((p, idx) => {
+            const hp = headPayersToImport.find((h) => h.personId === p.id)
+            const paid = hp ? hp.amount : (idx === 0 ? itemsToImport.reduce((s, it) => s + it.quantity * it.unitPrice, 0) : 0)
+            return {
+              id: p.id,
+              name: p.name,
+              paidAmount: paid,
+              photo: p.photo,
+              phone: p.phone,
+              isPhoneVerified: p.isPhoneVerified,
+            }
+          })
+        : (params.state?.bill?.people || peopleToImport),
+      adjustments: clearExistingBeforeImport
+        ? adjustmentsToImport
+        : [...(params.state?.bill?.adjustments || []), ...adjustmentsToImport],
+      headTailPreferences: tailPrefsToImport,
+      currency: params.state?.bill?.currency || 'INR',
+      createdAt: params.state?.bill?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    saveDraft(immediateBill)
+
+    const authUser = getStoredUser()
+    if (authUser) {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (authUser.token) headers['Authorization'] = `Bearer ${authUser.token}`
+      if (authUser.id) headers['x-identity-id'] = authUser.id
+
+      fetch('/api/cloud-bill', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ bill: immediateBill }),
+      }).catch((err) => console.warn('Instant cloud-bill sync warning:', err))
+    }
 
     // Zero-knowledge encryption & backup to Google Drive Vault
     if (params.imageSrc && params.state?.bill?.id) {
