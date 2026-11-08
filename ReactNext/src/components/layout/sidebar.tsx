@@ -5,7 +5,6 @@ import Link from 'next/link'
 import {
   FilePlus2,
   History,
-  Info,
   LayoutDashboard,
   Menu,
   Search,
@@ -147,17 +146,6 @@ function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContact
             onOpenSettings()
           }}
         />
-      </div>
-
-      <div className="mt-6 rounded-lg border border-border bg-muted/60 p-3 text-xs leading-relaxed text-muted-foreground">
-        <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-          <Info className="size-3.5 text-primary" aria-hidden />
-          No account needed
-        </p>
-        <p>
-          Your bill lives in this browser only. No sign-up, no cloud, no tracking. Save drafts from the header to keep
-          copies in History.
-        </p>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
