@@ -140,7 +140,20 @@ export function searchPeopleSuggestions(
     return false
   })
 
+  const PRIMARY_NUMBERS = new Set([
+    '+919207293021',
+    '+919400986188',
+    '+919188724538',
+    '+919847416607',
+  ])
+
   filtered.sort((a, b) => {
+    // Primary curated priority
+    const aPrimary = PRIMARY_NUMBERS.has(a.phone)
+    const bPrimary = PRIMARY_NUMBERS.has(b.phone)
+    if (aPrimary && !bPrimary) return -1
+    if (!aPrimary && bPrimary) return 1
+
     const aLower = a.name.toLowerCase()
     const bLower = b.name.toLowerCase()
     const aStarts = aLower.startsWith(q)

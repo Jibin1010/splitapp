@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   authenticateGoogleUser,
   createCloudSession,
@@ -8,6 +8,7 @@ import {
   registerLocalUser,
   revokeCloudSession,
   verifyCloudSession,
+  pool,
 } from '@/lib/supabase/db'
 
 describe('Supabase 5NF Authentication & Cloud Architecture', () => {
@@ -15,6 +16,13 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
   const username = `testuser_${testId}`
   const email = `test_${testId}@splitapp.io`
   const password = 'SecurePassword123!'
+  const testIdentityIds: string[] = []
+
+  afterAll(async () => {
+    if (testIdentityIds.length) {
+      await pool.query('DELETE FROM public.app_identities WHERE id = ANY($1::uuid[])', [testIdentityIds])
+    }
+  })
 
   it('1. should register a new user in 5NF tables (identities, profiles, local_credentials, roles)', async () => {
     const user = await registerLocalUser({
@@ -24,6 +32,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       displayName: 'Test User 5NF',
     })
 
+    if (user.identityId) testIdentityIds.push(user.identityId)
     expect(user.identityId).toBeDefined()
     expect(user.username).toBe(username)
     expect(user.email).toBe(email)
@@ -72,6 +81,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       avatarUrl: 'https://lh3.googleusercontent.com/a/test',
     })
 
+    if (res1.identityId) testIdentityIds.push(res1.identityId)
     expect(res1.identityId).toBeDefined()
     expect(res1.isNewUser).toBe(true)
     expect(res1.email).toBe(googleEmail)
@@ -98,6 +108,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       password: 'StrongPassword456!',
       displayName: 'Link Local User',
     })
+    if (linkUser.identityId) testIdentityIds.push(linkUser.identityId)
 
     // Sign in with Google using the same verified email
     const googleRes = await authenticateGoogleUser({
@@ -121,6 +132,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       password: 'PassWord123!',
       displayName: 'Multi Auth User',
     })
+    if (multiUser.identityId) testIdentityIds.push(multiUser.identityId)
 
     // Link WhatsApp phone to this identity
     const phone = `+9198${Math.floor(10000000 + Math.random() * 90000000)}`
@@ -211,6 +223,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
       password: autoPassword,
       displayName: 'Auto User',
     })
+    if (regRes.identityId) testIdentityIds.push(regRes.identityId)
 
     expect(regRes.identityId).toBeDefined()
     expect(regRes.email).toBe(autoEmail)
@@ -238,6 +251,7 @@ describe('Supabase 5NF Authentication & Cloud Architecture', () => {
     })
 
     const originalIdentityId = googleUser.identityId
+    if (originalIdentityId) testIdentityIds.push(originalIdentityId)
     expect(originalIdentityId).toBeDefined()
 
     // While logged in, user attempts to create a password account

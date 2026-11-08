@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   generateChallengeId,
   generateSecureToken,
@@ -10,6 +10,8 @@ import { arePhonesEqual, normalizePhoneNumber } from '@/lib/phone-verification/p
 import { checkRateLimit, resetRateLimits } from '@/lib/phone-verification/rate-limiter'
 import { VerificationRepository } from '@/lib/phone-verification/repository'
 import { PhoneVerificationService } from '@/lib/phone-verification/service'
+import { pool } from '@/lib/supabase/db'
+import { encryptPII } from '@/lib/crypto/pii-crypto'
 import crypto from 'crypto'
 
 describe('WhatsApp Phone Verification Architecture Test Suite', () => {
@@ -19,6 +21,23 @@ describe('WhatsApp Phone Verification Architecture Test Suite', () => {
     service = new PhoneVerificationService('919111222333')
     resetRateLimits()
     await VerificationRepository.clearAll()
+  })
+
+  afterAll(async () => {
+    await VerificationRepository.clearAll()
+    try {
+      const encTestPhone = encryptPII('+919876543210')
+      const testIdentities = await pool.query(
+        `SELECT identity_id FROM public.phone_whatsapp_identities WHERE e164_phone = $1 OR e164_phone = $2`,
+        [encTestPhone, '+919876543210']
+      )
+      if (testIdentities.rows.length > 0) {
+        const ids = testIdentities.rows.map((r) => r.identity_id)
+        await pool.query(`DELETE FROM public.app_identities WHERE id = ANY($1::uuid[])`, [ids])
+      }
+    } catch {
+      // test teardown
+    }
   })
 
   // =========================================================================
