@@ -7,6 +7,7 @@ import {
   FolderKanban,
   History,
   LayoutDashboard,
+  LogOut,
   Menu,
   Search,
   Settings,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { useBillStore } from '@/lib/store'
+import { getStoredUser, logout, AuthUser } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -86,6 +88,12 @@ function NavItem({
 function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContactSearch, onOpenBills, onNavigate }: SidebarNavProps) {
   const { state, startNewBill } = useBillStore()
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = React.useState(false)
+  const [user, setUser] = React.useState<AuthUser | null>(null)
+
+  React.useEffect(() => {
+    setUser(getStoredUser())
+  }, [])
 
   const hasContent = state.bill.items.length > 0 || state.bill.people.length > 0
 
@@ -158,6 +166,16 @@ function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContact
             onOpenSettings()
           }}
         />
+        {user && (
+          <NavItem
+            icon={<LogOut className="size-4 text-rose-500" />}
+            label="Log Out"
+            onClick={() => {
+              onNavigate?.()
+              setConfirmLogoutOpen(true)
+            }}
+          />
+        )}
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -181,6 +199,35 @@ function SidebarNav({ onOpenHistory, onOpenSettings, onOpenVision, onOpenContact
               }}
             >
               Start new split
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="size-5 text-rose-600" />
+              Sign out?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              Are you sure you want to sign out of <strong>{user?.name || user?.email || 'your account'}</strong> on this device?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                await logout()
+                window.location.href = '/login'
+              }}
+            >
+              Log Out
             </Button>
           </DialogFooter>
         </DialogContent>

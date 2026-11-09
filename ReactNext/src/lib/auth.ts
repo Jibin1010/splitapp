@@ -230,7 +230,11 @@ export async function syncGoogleUserToCloud(params: {
 export async function logout(): Promise<void> {
   saveStoredUser(null)
   try {
-    await fetch('/api/cloud-auth/session', { method: 'POST' })
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('splitledger.draft.v1')
+      window.localStorage.removeItem('splitledger.active_person.v1')
+    }
+    await fetch('/api/cloud-auth/session', { method: 'POST', credentials: 'include' })
   } catch {
     // ignore
   }

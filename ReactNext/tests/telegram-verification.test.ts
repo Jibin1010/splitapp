@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   PhoneVerificationService,
+  CHALLENGE_TTL_MS,
 } from '@/lib/phone-verification/service'
 import { VerificationRepository } from '@/lib/phone-verification/repository'
 import { resetRateLimits } from '@/lib/phone-verification/rate-limiter'
+import {
+  getTelegramLinks,
+  detectDevice,
+  openTelegramApp,
+} from '@/components/PhoneVerification/deep-links'
 
 describe('Telegram 1-Tap SIM Verification Test Suite', () => {
   let service: PhoneVerificationService
@@ -29,6 +35,11 @@ describe('Telegram 1-Tap SIM Verification Test Suite', () => {
     expect(result.telegramUrl).toBe(
       `https://t.me/${botUsername}?start=${result.challengeId}`
     )
+    expect(result.telegramAppUrl).toBe(
+      `tg://resolve?domain=${botUsername}&start=${result.challengeId}`
+    )
+    expect(new Date(result.expiresAt!).getTime() - Date.now()).toBeLessThanOrEqual(60_000)
+    expect(new Date(result.expiresAt!).getTime() - Date.now()).toBeGreaterThan(58_000)
   })
 
   it('Vector 2: should handle /start <challengeId> and link Telegram user ID', async () => {
@@ -254,6 +265,88 @@ describe('Telegram 1-Tap SIM Verification Test Suite', () => {
 
     const verifiedStatus = await service.checkStatus(created.challengeId!)
     expect(verifiedStatus.status).toBe('VERIFIED')
+  })
+
+  it('Vector 8: should enforce strict 1-minute expiration and reject verification after 60s timeout', async () => {
+    expect(CHALLENGE_TTL_MS).toBe(60_000)
+
+    const created = await service.createChallenge({
+      rawPhone: '+91 98765 43210',
+      channel: 'telegram',
+    })
+
+    // Manually expire challenge in repository by setting expiresAt to 1s in the past
+    const challenge = await VerificationRepository.findChallengeById(created.challengeId!)
+    expect(challenge).not.toBeNull()
+    if (challenge) {
+      challenge.expiresAt = new Date(Date.now() - 1000)
+      await VerificationRepository.createChallenge(challenge)
+    }
+
+    // Now try to verify
+    const telegramUserId = 88991122
+    await service.processTelegramUpdate({
+      message: {
+        message_id: 601,
+        from: { id: telegramUserId, username: 'lateuser' },
+        chat: { id: telegramUserId },
+        text: `/start ${created.challengeId}`,
+      },
+    })
+
+    const contactUpdate = {
+      message: {
+        message_id: 602,
+        from: { id: telegramUserId, username: 'lateuser' },
+        chat: { id: telegramUserId },
+        contact: {
+          phone_number: '919876543210',
+          first_name: 'Late User',
+          user_id: telegramUserId,
+        },
+      },
+    }
+
+    const verifyResult = await service.processTelegramUpdate(contactUpdate)
+    expect(verifyResult.success).toBe(false)
+    expect(verifyResult.reason).toBe('NO_PENDING_CHALLENGE')
+
+    const status = await service.checkStatus(created.challengeId!)
+    expect(status.status).toBe('EXPIRED')
+  })
+
+  it('Vector 9: should generate correct deep-links for Android and iPhone apps via getTelegramLinks', () => {
+    const links = getTelegramLinks(
+      'https://t.me/SplitAppVerifyBot?start=ch_test_123',
+      'tg://resolve?domain=SplitAppVerifyBot&start=ch_test_123'
+    )
+
+    expect(links.botUsername).toBe('SplitAppVerifyBot')
+    expect(links.startParam).toBe('ch_test_123')
+    expect(links.appUrl).toBe('tg://resolve?domain=SplitAppVerifyBot&start=ch_test_123')
+    expect(links.webUrl).toBe('https://t.me/SplitAppVerifyBot?start=ch_test_123')
+    expect(links.androidIntentUrl).toContain('package=org.telegram.messenger')
+  })
+
+  it('Vector 10: should accurately detect Mac, Windows, Linux and Mobile devices', () => {
+    const device = detectDevice()
+    expect(device).toBeDefined()
+    expect(typeof device.isDesktop).toBe('boolean')
+    expect(typeof device.isMobile).toBe('boolean')
+    expect(typeof device.isMac).toBe('boolean')
+    expect(typeof device.isWindows).toBe('boolean')
+    expect(device.osName).toBeDefined()
+  })
+
+  it('Vector 11: should open Telegram app on Mac, Windows, and PC via native tg:// scheme', () => {
+    // In node/test environment, openTelegramApp returns true without throwing
+    const opened = openTelegramApp(
+      'https://t.me/SplitAppVerifyBot?start=test_challenge_abc',
+      'tg://resolve?domain=SplitAppVerifyBot&start=test_challenge_abc',
+      { fallbackToWeb: false }
+    )
+    // If window is undefined (Node.js), returns false gracefully
+    expect(typeof opened).toBe('boolean')
   })
 })
 

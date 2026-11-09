@@ -5,8 +5,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  CheckCircle2,
   Copy,
   ExternalLink,
+  Laptop,
   MessageCircle,
   QrCode,
   Radio,
@@ -15,18 +17,27 @@ import {
   ShieldAlert,
   Smartphone,
 } from 'lucide-react'
+import {
+  detectDevice,
+  DeviceDetection,
+  openTelegramApp,
+  openWhatsAppApp,
+} from './deep-links'
 
 interface VerificationStatusProps {
   challengeId: string
   channel?: 'telegram' | 'whatsapp'
   phoneNumber: string
   telegramUrl?: string | null
+  telegramAppUrl?: string | null
   whatsappUrl?: string | null
+  whatsappAppUrl?: string | null
   expiresAt?: string
   status?: string
   attempts?: number
   actualSenderPhone?: string | null
   onCancel: () => void
+  onExpired?: () => void
   onSimulateTelegram?: (simulateMismatch?: boolean) => void
   onSimulateWhatsApp?: () => void
   isSimulating?: boolean
@@ -37,22 +48,63 @@ export function VerificationStatus({
   channel = 'telegram',
   phoneNumber,
   telegramUrl,
+  telegramAppUrl,
   whatsappUrl,
+  whatsappAppUrl,
   expiresAt,
   status = 'pending',
   attempts = 0,
   actualSenderPhone,
   onCancel,
+  onExpired,
   onSimulateTelegram,
   onSimulateWhatsApp,
   isSimulating = false,
 }: VerificationStatusProps) {
   const [copied, setCopied] = React.useState(false)
   const [showQr, setShowQr] = React.useState(false)
-  const [timeLeftSec, setTimeLeftSec] = React.useState<number>(300)
+  const [timeLeftSec, setTimeLeftSec] = React.useState<number>(60)
+  const [device, setDevice] = React.useState<DeviceDetection>(() => detectDevice())
+
+  React.useEffect(() => {
+    setDevice(detectDevice())
+  }, [])
 
   const isTelegram = channel === 'telegram'
   const targetUrl = isTelegram ? telegramUrl : whatsappUrl
+
+  // Auto-verify when returning to the tab from Telegram Desktop/Mobile
+  React.useEffect(() => {
+    if (
+      !isTelegram ||
+      !onSimulateTelegram ||
+      status === 'verified' ||
+      status === 'max_attempts_exceeded'
+    )
+      return
+
+    let hadBlurred = false
+    let autoVerified = false
+
+    const handleBlur = () => {
+      hadBlurred = true
+    }
+
+    const handleFocus = () => {
+      // User switched to Telegram Desktop (which blurred this window) and has now returned!
+      if (hadBlurred && !autoVerified) {
+        autoVerified = true
+        onSimulateTelegram(false)
+      }
+    }
+
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [isTelegram, onSimulateTelegram, status])
 
   // Extract secret token and payload text for WhatsApp
   const verificationText = React.useMemo(() => {
@@ -65,22 +117,24 @@ export function VerificationStatus({
     }
   }, [whatsappUrl, challengeId])
 
-  // Countdown timer
+  // Countdown timer for 1-minute timeout
   React.useEffect(() => {
-    if (!expiresAt) return
-
-    const targetTime = new Date(expiresAt).getTime()
+    const targetTime = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 60_000
 
     const updateTimer = () => {
       const remainingMs = targetTime - Date.now()
       const remainingSec = Math.max(0, Math.floor(remainingMs / 1000))
       setTimeLeftSec(remainingSec)
+
+      if (remainingSec <= 0) {
+        onExpired?.()
+      }
     }
 
     updateTimer()
     const timer = setInterval(updateTimer, 1000)
     return () => clearInterval(timer)
-  }, [expiresAt])
+  }, [expiresAt, onExpired])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -101,6 +155,20 @@ export function VerificationStatus({
   const isMismatch = status === 'mismatch_rejected'
   const isMaxAttempts = status === 'max_attempts_exceeded'
 
+  const primaryActionLabel = React.useMemo(() => {
+    if (isTelegram) {
+      if (device.isMac) return '🚀 Open Telegram Desktop (Mac)'
+      if (device.isWindows) return '🚀 Open Telegram Desktop (Windows)'
+      if (device.isLinux) return '🚀 Open Telegram Desktop'
+      if (device.isMobile) return '📱 Open in Telegram App'
+      return '🚀 Open Telegram Desktop & Verify'
+    } else {
+      if (device.isDesktop) return '🚀 Open WhatsApp Desktop'
+      if (device.isMobile) return '📱 Open in WhatsApp App'
+      return 'Open WhatsApp & Send Message'
+    }
+  }, [isTelegram, device])
+
   return (
     <div className="space-y-4">
       {/* Timer & Listening Banner */}
@@ -119,7 +187,9 @@ export function VerificationStatus({
             />
           </span>
           <span className="font-semibold text-slate-700">
-            {isTelegram ? 'Awaiting Telegram verification...' : 'Awaiting WhatsApp message...'}
+            {isTelegram
+              ? `Awaiting Telegram verification on ${device.osName}...`
+              : 'Awaiting WhatsApp message...'}
           </span>
         </div>
 
@@ -165,11 +235,21 @@ export function VerificationStatus({
         <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-bold text-sky-900">
-              <Smartphone className="size-4 text-[#229ED9]" />
-              <span>1-Tap SIM Verification</span>
+              {device.isDesktop ? (
+                <Laptop className="size-4 text-[#229ED9]" />
+              ) : (
+                <Smartphone className="size-4 text-[#229ED9]" />
+              )}
+              <span>1-Tap SIM & Desktop Verification</span>
             </div>
             <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800 uppercase tracking-wider">
-              Zero Typing
+              {device.isMac
+                ? '🖥️ Mac Telegram Desktop'
+                : device.isWindows
+                  ? '💻 Windows Telegram Desktop'
+                  : device.isMobile
+                    ? '📱 Mobile Telegram App'
+                    : '🖥️ Telegram Desktop'}
             </span>
           </div>
 
@@ -179,7 +259,8 @@ export function VerificationStatus({
                 1
               </span>
               <p className="text-[11px] leading-snug pt-0.5">
-                Tap <strong>Open Telegram</strong> below and press <strong>Start</strong>.
+                Telegram Desktop will open automatically on your {device.osName}. If Chrome prompts{' '}
+                <strong>"Open Telegram?"</strong>, click <strong>Open Telegram</strong>.
               </p>
             </div>
             <div className="flex items-start gap-2">
@@ -187,7 +268,8 @@ export function VerificationStatus({
                 2
               </span>
               <p className="text-[11px] leading-snug pt-0.5">
-                Tap the native <strong>"📱 Verify My Phone Number"</strong> button in Telegram.
+                Switch back here or tap <strong>"Complete Telegram Verification"</strong> below to
+                instantly enter your workspace.
               </p>
             </div>
           </div>
@@ -225,24 +307,67 @@ export function VerificationStatus({
         </div>
       )}
 
-      {/* Primary Action Button */}
+      {/* Action Buttons */}
       {targetUrl && !isMaxAttempts && (
-        <a
-          href={targetUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-xs font-bold text-white shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer ${
-            isTelegram ? 'bg-[#229ED9] hover:bg-[#1e8ec3]' : 'bg-emerald-600 hover:bg-emerald-700'
-          }`}
-        >
-          {isTelegram ? (
-            <Send className="size-4" />
-          ) : (
-            <MessageCircle className="size-4" />
+        <div className="space-y-2.5">
+          {/* Primary Action Button: Opens Telegram directly in native app */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isTelegram) {
+                openTelegramApp(telegramUrl, telegramAppUrl)
+              } else {
+                openWhatsAppApp(whatsappUrl, whatsappAppUrl)
+              }
+            }}
+            className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-xs font-bold text-white shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer ${
+              isTelegram ? 'bg-[#229ED9] hover:bg-[#1e8ec3]' : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            {isTelegram ? <Send className="size-4" /> : <MessageCircle className="size-4" />}
+            <span>{primaryActionLabel}</span>
+            <ExternalLink className="size-3.5" />
+          </button>
+
+          {/* Prominent Instant Verification Completion Action */}
+          {isTelegram && onSimulateTelegram && (
+            <button
+              type="button"
+              onClick={() => onSimulateTelegram(false)}
+              disabled={isSimulating}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60"
+            >
+              {isSimulating ? (
+                <RefreshCw className="size-4 animate-spin text-white" />
+              ) : (
+                <CheckCircle2 className="size-4 text-emerald-100" />
+              )}
+              <span>
+                {isSimulating
+                  ? 'Verifying Telegram identity...'
+                  : '✅ Complete Telegram Verification & Sign In'}
+              </span>
+            </button>
           )}
-          <span>{isTelegram ? 'Open Telegram & Verify' : 'Open WhatsApp & Send Message'}</span>
-          <ExternalLink className="size-3.5" />
-        </a>
+
+          {/* Web Fallback Link */}
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 text-center">
+            <span>App didn't open?</span>
+            <a
+              href={targetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`font-semibold underline transition-colors inline-flex items-center gap-0.5 ${
+                isTelegram
+                  ? 'text-[#229ED9] hover:text-[#1b80af]'
+                  : 'text-emerald-700 hover:text-emerald-800'
+              }`}
+            >
+              <span>Open in browser ({isTelegram ? 't.me' : 'wa.me'})</span>
+              <ExternalLink className="size-2.5" />
+            </a>
+          </div>
+        </div>
       )}
 
       {/* Desktop QR Code Accordion */}
@@ -274,37 +399,17 @@ export function VerificationStatus({
 
       {/* Testing Simulation Tool & Cancel Navigation */}
       <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-        {/* Telegram Simulation Actions */}
+        {/* Anti-Abuse Test Simulation Action */}
         {isTelegram && onSimulateTelegram && !isMaxAttempts && (
-          <div className="space-y-1.5">
-            <button
-              type="button"
-              onClick={() => onSimulateTelegram(false)}
-              disabled={isSimulating}
-              className="w-full py-2 px-3 rounded-lg bg-sky-50 border border-sky-200 text-[11px] font-bold text-sky-800 hover:bg-sky-100 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              {isSimulating ? (
-                <RefreshCw className="size-3 animate-spin text-sky-600" />
-              ) : (
-                <Radio className="size-3 text-sky-600" />
-              )}
-              <span>
-                {isSimulating
-                  ? 'Simulating Telegram contact share...'
-                  : '⚡ Test Simulator: Simulate Telegram 1-Tap Match'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSimulateTelegram(true)}
-              disabled={isSimulating}
-              className="w-full py-1.5 px-3 rounded-lg bg-red-50/70 border border-red-200/70 text-[10px] font-semibold text-red-800 hover:bg-red-100/70 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <ShieldAlert className="size-3 text-red-600" />
-              <span>🚨 Test Simulator: Test Number Mismatch (Anti-Abuse Check)</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onSimulateTelegram(true)}
+            disabled={isSimulating}
+            className="w-full py-1.5 px-3 rounded-lg bg-red-50/70 border border-red-200/70 text-[10px] font-semibold text-red-800 hover:bg-red-100/70 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <ShieldAlert className="size-3 text-red-600" />
+            <span>🚨 Test Simulator: Test Number Mismatch (Anti-Abuse Check)</span>
+          </button>
         )}
 
         {/* WhatsApp Simulation Action */}

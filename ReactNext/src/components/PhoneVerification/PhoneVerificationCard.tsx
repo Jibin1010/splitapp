@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Lock,
   MessageCircle,
+  RefreshCw,
   Send,
   ShieldAlert,
   Sparkles,
@@ -19,6 +20,7 @@ import { WhatsAppVerifyButton } from './WhatsAppVerifyButton'
 import { TelegramVerifyButton } from './TelegramVerifyButton'
 import { VerificationStatus } from './VerificationStatus'
 import { VerificationSuccess } from './VerificationSuccess'
+import { openTelegramApp, openWhatsAppApp } from './deep-links'
 
 export type VerificationChannel = 'telegram' | 'whatsapp'
 
@@ -49,7 +51,9 @@ export function PhoneVerificationCard({
 
   const [challengeId, setChallengeId] = React.useState<string | null>(null)
   const [whatsappUrl, setWhatsappUrl] = React.useState<string | null>(null)
+  const [whatsappAppUrl, setWhatsappAppUrl] = React.useState<string | null>(null)
   const [telegramUrl, setTelegramUrl] = React.useState<string | null>(null)
+  const [telegramAppUrl, setTelegramAppUrl] = React.useState<string | null>(null)
   const [normalizedE164, setNormalizedE164] = React.useState<string | null>(null)
   const [expiresAt, setExpiresAt] = React.useState<string | null>(null)
 
@@ -146,6 +150,35 @@ export function PhoneVerificationCard({
     }
   }, [step, challengeId, normalizedE164, phoneNumber, userName, channel, onSuccess, router])
 
+  // Strict 1-Minute Expiration Watchdog:
+  // If verification doesn't complete within 1 minute (60s), cancel challenge & show expired state
+  React.useEffect(() => {
+    if (step !== 'waiting' || !challengeId) return
+
+    const targetTime = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 60_000
+    const remainingMs = Math.max(0, targetTime - Date.now())
+
+    const timeoutTimer = setTimeout(() => {
+      if (challengeId) {
+        fetch(`/api/phone-verification/challenges/${challengeId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
+      setStep('expired')
+    }, remainingMs)
+
+    return () => clearTimeout(timeoutTimer)
+  }, [step, challengeId, expiresAt])
+
+  const handleExpired = React.useCallback(() => {
+    if (challengeId) {
+      fetch(`/api/phone-verification/challenges/${challengeId}/cancel`, {
+        method: 'POST',
+      }).catch(() => {})
+    }
+    setStep('expired')
+  }, [challengeId])
+
   // Handle Challenge Creation (Step 2)
   const handleStartVerification = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -179,7 +212,9 @@ export function PhoneVerificationCard({
 
       setChallengeId(data.challengeId)
       setWhatsappUrl(data.whatsappUrl || null)
+      setWhatsappAppUrl(data.whatsappAppUrl || null)
       setTelegramUrl(data.telegramUrl || null)
+      setTelegramAppUrl(data.telegramAppUrl || null)
       setNormalizedE164(data.e164)
       setExpiresAt(data.expiresAt)
       setVerificationStatus('pending')
@@ -187,10 +222,11 @@ export function PhoneVerificationCard({
       setActualSenderPhone(null)
       setStep('waiting')
 
-      // Automatically open Telegram or WhatsApp in a new tab if URL is available
-      const redirectUrl = channel === 'telegram' ? data.telegramUrl : data.whatsappUrl
-      if (typeof window !== 'undefined' && redirectUrl) {
-        window.open(redirectUrl, '_blank')
+      // Automatically launch Telegram directly into Android / iPhone app (or fallback to web)
+      if (channel === 'telegram') {
+        openTelegramApp(data.telegramUrl, data.telegramAppUrl)
+      } else if (channel === 'whatsapp') {
+        openWhatsAppApp(data.whatsappUrl, data.whatsappAppUrl)
       }
     } catch (err: any) {
       setLoading(false)
@@ -208,7 +244,9 @@ export function PhoneVerificationCard({
     setStep('input')
     setChallengeId(null)
     setWhatsappUrl(null)
+    setWhatsappAppUrl(null)
     setTelegramUrl(null)
+    setTelegramAppUrl(null)
     setError(null)
     setVerificationStatus('pending')
     setAttempts(0)
@@ -421,34 +459,38 @@ export function PhoneVerificationCard({
           channel={channel}
           phoneNumber={normalizedE164 || phoneNumber}
           telegramUrl={telegramUrl}
+          telegramAppUrl={telegramAppUrl}
           whatsappUrl={whatsappUrl}
+          whatsappAppUrl={whatsappAppUrl}
           expiresAt={expiresAt || undefined}
           status={verificationStatus}
           attempts={attempts}
           actualSenderPhone={actualSenderPhone}
           onCancel={handleCancel}
+          onExpired={handleExpired}
           onSimulateTelegram={handleSimulateTelegram}
           onSimulateWhatsApp={handleSimulateWhatsApp}
           isSimulating={isSimulating}
         />
       )}
 
-      {/* STEP 3: EXPIRED STATE */}
+      {/* STEP 3: EXPIRED STATE (1 MINUTE TIMEOUT) */}
       {step === 'expired' && (
-        <div className="py-6 flex flex-col items-center text-center space-y-3">
+        <div className="py-6 flex flex-col items-center text-center space-y-3 animate-in fade-in">
           <div className="flex size-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
             <AlertTriangle className="size-6" />
           </div>
-          <h3 className="text-sm font-bold text-slate-800">Verification Session Expired</h3>
-          <p className="text-xs text-slate-500 max-w-xs">
-            The 5-minute security window expired before confirmation was received.
+          <h3 className="text-sm font-bold text-slate-800">Verification Timed Out (1 Minute Expired)</h3>
+          <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+            Verification was not completed within 1 minute. The previous request has been removed. Please generate a new one to try again.
           </p>
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded-xl bg-slate-900 py-2.5 px-4 text-xs font-bold text-white hover:bg-slate-800 transition-all cursor-pointer"
+            className="rounded-xl bg-[#229ED9] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#1e8ec3] transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
           >
-            Start New Verification
+            <RefreshCw className="size-3.5" />
+            <span>Start New Verification</span>
           </button>
         </div>
       )}

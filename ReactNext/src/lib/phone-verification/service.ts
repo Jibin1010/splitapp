@@ -29,7 +29,9 @@ export interface CreateChallengeResult {
   challengeId?: string
   channel?: VerificationChannel
   whatsappUrl?: string
+  whatsappAppUrl?: string
   telegramUrl?: string
+  telegramAppUrl?: string
   e164?: string
   expiresAt?: string
   error?: string
@@ -57,7 +59,7 @@ export interface ProcessTelegramResult {
   actualE164?: string
 }
 
-const CHALLENGE_TTL_MS = 5 * 60 * 1000 // Strict 5-minute expiration
+export const CHALLENGE_TTL_MS = 1 * 60 * 1000 // Strict 1-minute expiration (user requested 1-min timeout)
 const MAX_CHALLENGE_ATTEMPTS = 3       // Maximum 3 attempts before challenge is burned
 const IP_RATE_LIMIT = 10               // Max 10 challenges per 10 mins per IP
 const IP_WINDOW_MS = 10 * 60 * 1000
@@ -220,17 +222,21 @@ export class PhoneVerificationService {
 
     await VerificationRepository.createChallenge(challengeEntity)
 
-    // 5. Build Deep Links for Telegram or WhatsApp
+    // 5. Build Deep Links for Telegram or WhatsApp (both Web and Native Mobile App Schemes)
     const message = `VERIFY ${challengeId} ${secretToken}`
     const whatsappUrl = `https://wa.me/${this.businessNumber}?text=${encodeURIComponent(message)}`
+    const whatsappAppUrl = `whatsapp://send?phone=${this.businessNumber}&text=${encodeURIComponent(message)}`
     const telegramUrl = `https://t.me/${this.telegramBotUsername}?start=${challengeId}`
+    const telegramAppUrl = `tg://resolve?domain=${this.telegramBotUsername}&start=${challengeId}`
 
     return {
       success: true,
       challengeId,
       channel,
       whatsappUrl,
+      whatsappAppUrl,
       telegramUrl,
+      telegramAppUrl,
       e164: normalized.e164,
       expiresAt: expiresAt.toISOString(),
     }
@@ -326,7 +332,7 @@ export class PhoneVerificationService {
       const challenge = await VerificationRepository.findPendingChallengeByTelegramUser(telegramUserId)
       if (!challenge) {
         await this.sendTelegramMessage(chatId, {
-          text: `⚠️ No active verification request found or the 5-minute session expired.\n\nPlease return to SplitApp and click "Verify with Telegram" to start a new request.`,
+          text: `⚠️ No active verification request found or the 1-minute session expired.\n\nPlease return to SplitApp and tap "Verify with Telegram" to start a new request.`,
           parse_mode: 'Markdown',
           reply_markup: { remove_keyboard: true },
         })

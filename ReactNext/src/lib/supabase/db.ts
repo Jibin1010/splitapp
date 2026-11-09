@@ -27,10 +27,17 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
-const SUPABASE_DB_URL =
+let rawDbUrl =
   process.env.DATABASE_URL ||
   process.env.SUPABASE_POSTGRES_URL ||
   'postgresql://postgres@localhost:5432/postgres'
+
+// Automatically normalize Supabase pooler port 6543 to direct session port 5432 to prevent pooler handshake timeouts
+if (rawDbUrl.includes('pooler.supabase.com:6543')) {
+  rawDbUrl = rawDbUrl.replace(':6543', ':5432')
+}
+
+const SUPABASE_DB_URL = rawDbUrl
 
 
 

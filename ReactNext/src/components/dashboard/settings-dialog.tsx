@@ -6,6 +6,7 @@ import {
   AlertCircle,
   CheckCircle2,
   HardDriveDownload,
+  LogOut,
   Phone,
   RefreshCw,
   Settings,
@@ -18,7 +19,7 @@ import {
 import type { CurrencyCode } from '@/types/split'
 import { CURRENCY_META } from '@/lib/money'
 import { useBillStore } from '@/lib/store'
-import { getStoredUser, getUnifiedProfile, unlinkPhoneFromAccount, AuthUser } from '@/lib/auth'
+import { getStoredUser, getUnifiedProfile, unlinkPhoneFromAccount, logout, AuthUser } from '@/lib/auth'
 import { PhoneVerificationCard } from '@/components/PhoneVerification'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +40,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const [confirmClearOpen, setConfirmClearOpen] = React.useState(false)
   const [confirmUnlinkOpen, setConfirmUnlinkOpen] = React.useState(false)
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = React.useState(false)
   const [connectPhoneOpen, setConnectPhoneOpen] = React.useState(false)
 
   const [user, setUser] = React.useState<AuthUser | null>(null)
@@ -48,6 +50,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const [loadingProfile, setLoadingProfile] = React.useState(false)
   const [unlinking, setUnlinking] = React.useState(false)
+  const [loggingOut, setLoggingOut] = React.useState(false)
   const [notification, setNotification] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Load user profile & attached phone when modal opens
@@ -137,6 +140,28 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       setNotification({
         type: 'error',
         text: err?.message || 'Network error occurred.',
+      })
+    }
+  }
+
+  // Handle account logout
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await logout()
+      setUser(null)
+      setAttachedPhone(null)
+      setAuthProvider(null)
+      setAccountEmail(null)
+      setConfirmLogoutOpen(false)
+      onOpenChange(false)
+      window.location.href = '/login'
+    } catch (err: any) {
+      setLoggingOut(false)
+      setConfirmLogoutOpen(false)
+      setNotification({
+        type: 'error',
+        text: err?.message || 'Failed to log out.',
       })
     }
   }
@@ -294,11 +319,20 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               </div>
 
               {user ? (
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <p className="font-bold text-slate-900">{user.name || 'Account User'}</p>
-                    <p className="text-[11px] text-muted-foreground">{accountEmail || user.email}</p>
+                <div className="flex items-center justify-between pt-1 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-900 truncate">{user.name || 'Account User'}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{accountEmail || user.email}</p>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmLogoutOpen(true)}
+                    className="h-7 shrink-0 gap-1.5 px-2.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <LogOut className="size-3 text-rose-500" />
+                    <span>Log Out</span>
+                  </Button>
                 </div>
               ) : (
                 <div className="pt-1 flex items-center justify-between">
@@ -358,6 +392,30 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 Clear all data
               </Button>
             </div>
+
+            {/* 6. LOG OUT / SIGN OUT (WHEN AUTHENTICATED) */}
+            {user && (
+              <div className="rounded-xl border border-rose-200/80 bg-rose-50/40 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                    <LogOut className="size-3.5 text-rose-600" aria-hidden />
+                    Sign Out
+                  </p>
+                  <p className="text-[11px] text-rose-900/70 truncate">
+                    Currently signed in as {user.name || user.email}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmLogoutOpen(true)}
+                  className="h-8 shrink-0 gap-1.5 px-3 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-100 border-rose-300 cursor-pointer shadow-xs bg-white transition-colors"
+                >
+                  <LogOut className="size-3.5 text-rose-600" />
+                  <span>Log Out</span>
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -438,6 +496,51 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </DialogClose>
             <Button variant="destructive" onClick={handleClearAll}>
               Clear everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRMATION MODAL: LOG OUT */}
+      <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <LogOut className="size-5 text-rose-600" aria-hidden />
+              Sign out of {APP_NAME}?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1 leading-relaxed">
+              You will be signed out of <strong>{user?.name || accountEmail || user?.email || 'your account'}</strong> on this browser. Your cloud bills and split history remain safe in the cloud.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmLogoutOpen(false)}
+              disabled={loggingOut}
+              className="text-xs font-medium cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="gap-1.5 text-xs font-bold cursor-pointer"
+            >
+              {loggingOut ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  Signing out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="size-3.5" />
+                  Sign Out
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
